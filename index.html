@@ -160,8 +160,6 @@ input:focus{border-color:#888;background:#fff}
     <p class="modal-sub" id="modal-prijem-sub"></p>
     <label>Počet kusů</label>
     <input type="number" id="prijemQty" min="1" value="1" inputmode="numeric">
-    <label>Minimální zásoba skladu (upozornění)</label>
-    <input type="number" id="prijemMin" min="0" inputmode="numeric" placeholder="např. 5">
     <div class="modal-btns">
       <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-prijem')">Zrušit</button>
       <button class="btn primary" onclick="confirmPrijem()">✓ Potvrdit příjem</button>
@@ -371,12 +369,40 @@ function renderOrder(){
   const low=products.filter(p=>p.sklad===0);
   const el=document.getElementById('order-list');
   if(!low.length){el.innerHTML='<div class="empty-state">Vše v pořádku ✓<br>Sklad je zásobený.</div>';return;}
-  el.innerHTML=`<div class="section-title">Sklad vyčerpán — ${low.length} produktů k objednání</div>`+
-    low.map(p=>`<div class="alert-card">
-      <div class="product-name">${p.name}</div>
-      <div class="product-cat">${catBadge(p.cat)}</div>
-      <div class="alert-msg">Sklad je prázdný — je čas objednat.</div>
+  const neobjednano=low.filter(p=>p.order_status!=='ordered');
+  const objednano=low.filter(p=>p.order_status==='ordered');
+  let html='';
+  if(neobjednano.length){
+    html+=`<div class="section-title">Neobjednáno — ${neobjednano.length} produktů</div>`;
+    html+=neobjednano.map(p=>`<div class="alert-card" style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div class="product-name">${p.name}</div>
+        <div class="product-cat">${catBadge(p.cat)}</div>
+      </div>
+      <button class="btn" style="flex:none;padding:7px 12px;font-size:12px;border-color:#27ae60;color:#27ae60;background:#f0faf4" onclick="toggleOrder(${p.id},'ordered')">Objednáno ✓</button>
     </div>`).join('');
+  }
+  if(objednano.length){
+    html+=`<div class="section-title" style="margin-top:${neobjednano.length?'8px':'0'}">Objednáno — čeká na doručení</div>`;
+    html+=objednano.map(p=>`<div class="product-card" style="display:flex;align-items:center;gap:10px;opacity:0.7">
+      <div style="flex:1">
+        <div class="product-name">${p.name}</div>
+        <div class="product-cat">${catBadge(p.cat)}</div>
+      </div>
+      <button class="btn" style="flex:none;padding:7px 12px;font-size:12px" onclick="toggleOrder(${p.id},'none')">Zrušit</button>
+    </div>`).join('');
+  }
+  el.innerHTML=html;
+}
+
+async function toggleOrder(id, status){
+  setSync('syncing');
+  try{
+    await api('PATCH','products',{order_status:status},`?id=eq.${id}`);
+    setSync('ok');
+    await loadProducts();
+    renderOrder();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function renderInventura(){
@@ -515,18 +541,16 @@ function openPrijem(id){
   const p=products.find(x=>x.id===id);
   document.getElementById('modal-prijem-sub').textContent=p.name;
   document.getElementById('prijemQty').value=1;
-  document.getElementById('prijemMin').value=p.min||'';
   document.getElementById('modal-prijem').classList.add('open');
   setTimeout(()=>document.getElementById('prijemQty').focus(),300);
 }
 async function confirmPrijem(){
   const qty=parseInt(document.getElementById('prijemQty').value)||0;
-  const min=parseInt(document.getElementById('prijemMin').value);
   if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p=products.find(x=>x.id===activeProductId);
   setSync('syncing');
   try{
-    await api('PATCH','products',{sklad:p.sklad+qty,min:isNaN(min)?p.min:min},`?id=eq.${p.id}`);
+    await api('PATCH','products',{sklad:p.sklad+qty,order_status:'none'},`?id=eq.${p.id}`);
     await api('POST','history',[{product_id:p.id,product_name:p.name,type:'prijem',qty}]);
     setSync('ok');closeModal('modal-prijem');await loadProducts();
   }catch(e){setSync('err');alert('Chyba: '+e.message);}
