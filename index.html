@@ -10,6 +10,23 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#111;max-width:480px;margin:0 auto;min-height:100vh}
+
+/* PIN screen */
+#pin-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px 24px;background:#f5f5f5}
+#pin-screen h2{font-size:22px;font-weight:700;margin-bottom:6px}
+#pin-screen p{font-size:14px;color:#888;margin-bottom:32px}
+.pin-dots{display:flex;gap:14px;margin-bottom:32px}
+.pin-dot{width:16px;height:16px;border-radius:50%;background:#ddd;transition:background 0.15s}
+.pin-dot.filled{background:#111}
+.pin-numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:280px}
+.pin-btn{padding:18px;border-radius:14px;border:1px solid #e0e0e0;background:#fff;font-size:22px;font-weight:600;cursor:pointer;font-family:inherit;color:#111}
+.pin-btn:active{background:#f0f0f0;transform:scale(0.96)}
+.pin-btn.del{font-size:18px;color:#888}
+.pin-btn.empty{border:none;background:none;pointer-events:none}
+.pin-error{color:#c0392b;font-size:14px;margin-top:12px;min-height:20px}
+
+/* App */
+#app{display:none}
 .top-bar{display:flex;align-items:center;gap:8px;padding:12px 16px;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:0;z-index:10}
 .top-bar h1{font-size:17px;font-weight:600;flex:1}
 .tab-bar{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:49px;z-index:9}
@@ -82,27 +99,57 @@ input:focus{border-color:#888;background:#fff}
 </head>
 <body>
 
-<div class="top-bar">
-  <h1>🏪 Sklad & Automat <span class="sync-indicator" id="sync-status"></span></h1>
-  <button class="btn" style="flex:none;padding:7px 13px;font-size:13px" onclick="openAddProduct()">+ Produkt</button>
-</div>
-<div class="tab-bar">
-  <button class="tab active" onclick="switchTab('sklad')">Sklad</button>
-  <button class="tab" onclick="switchTab('objednat')">Objednat</button>
-  <button class="tab" onclick="switchTab('inventura')">Inventura</button>
-  <button class="tab" onclick="switchTab('historie')">Historie</button>
-  <button class="tab" onclick="switchTab('nastaveni')">Nastavení</button>
-</div>
-<div class="content">
-  <div id="tab-sklad">
-    <input class="search-bar" type="text" placeholder="🔍 Hledat produkt..." oninput="applyFilters()" id="search">
-    <div class="filter-bar" id="filter-bar"></div>
-    <div id="product-list"><div class="loading">Načítám data...</div></div>
+<!-- PIN přihlášení -->
+<div id="pin-screen">
+  <h2>🔒 Sklad & Automat</h2>
+  <p>Zadej PIN pro přístup</p>
+  <div class="pin-dots">
+    <div class="pin-dot" id="dot-0"></div>
+    <div class="pin-dot" id="dot-1"></div>
+    <div class="pin-dot" id="dot-2"></div>
+    <div class="pin-dot" id="dot-3"></div>
   </div>
-  <div id="tab-objednat" style="display:none"><div id="order-list"></div></div>
-  <div id="tab-inventura" style="display:none"><div id="inventura-list"></div></div>
-  <div id="tab-historie" style="display:none"><div id="history-list"></div></div>
-  <div id="tab-nastaveni" style="display:none"><div id="settings-content"></div></div>
+  <div class="pin-numpad">
+    <button class="pin-btn" onclick="pinPress('1')">1</button>
+    <button class="pin-btn" onclick="pinPress('2')">2</button>
+    <button class="pin-btn" onclick="pinPress('3')">3</button>
+    <button class="pin-btn" onclick="pinPress('4')">4</button>
+    <button class="pin-btn" onclick="pinPress('5')">5</button>
+    <button class="pin-btn" onclick="pinPress('6')">6</button>
+    <button class="pin-btn" onclick="pinPress('7')">7</button>
+    <button class="pin-btn" onclick="pinPress('8')">8</button>
+    <button class="pin-btn" onclick="pinPress('9')">9</button>
+    <button class="pin-btn empty"></button>
+    <button class="pin-btn" onclick="pinPress('0')">0</button>
+    <button class="pin-btn del" onclick="pinDel()">⌫</button>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+</div>
+
+<!-- Hlavní aplikace -->
+<div id="app">
+  <div class="top-bar">
+    <h1>🏪 Sklad & Automat <span class="sync-indicator" id="sync-status"></span></h1>
+    <button class="btn" style="flex:none;padding:7px 13px;font-size:13px" onclick="openAddProduct()">+ Produkt</button>
+  </div>
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('sklad')">Sklad</button>
+    <button class="tab" onclick="switchTab('objednat')">Objednat</button>
+    <button class="tab" onclick="switchTab('inventura')">Inventura</button>
+    <button class="tab" onclick="switchTab('historie')">Historie</button>
+    <button class="tab" onclick="switchTab('nastaveni')">Nastavení</button>
+  </div>
+  <div class="content">
+    <div id="tab-sklad">
+      <input class="search-bar" type="text" placeholder="🔍 Hledat produkt..." oninput="applyFilters()" id="search">
+      <div class="filter-bar" id="filter-bar"></div>
+      <div id="product-list"><div class="loading">Načítám data...</div></div>
+    </div>
+    <div id="tab-objednat" style="display:none"><div id="order-list"></div></div>
+    <div id="tab-inventura" style="display:none"><div id="inventura-list"></div></div>
+    <div id="tab-historie" style="display:none"><div id="history-list"></div></div>
+    <div id="tab-nastaveni" style="display:none"><div id="settings-content"></div></div>
+  </div>
 </div>
 
 <!-- Modal: Příjem -->
@@ -171,6 +218,8 @@ input:focus{border-color:#888;background:#fff}
 </div>
 
 <script>
+const CORRECT_PIN = '5100';
+const PIN_KEY = 'sklad_unlocked';
 const SUPABASE_URL = 'https://snoxqbeugghtrxhokjfw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_66cPTPZRybZW6yzQ04688A_K3NSj-XY';
 const HEADERS = {
@@ -179,7 +228,6 @@ const HEADERS = {
   'Authorization':'Bearer '+SUPABASE_KEY,
   'Prefer':'return=representation'
 };
-
 const CAT_COLORS = {
   'Vilgain':   {bg:'#ede9fe',color:'#4c1d95'},
   'Nápoje':    {bg:'#dbeafe',color:'#1e3a8a'},
@@ -195,83 +243,119 @@ let products = [];
 let activeProductId = null;
 let activeTab = 'sklad';
 let activeFilter = 'Vše';
+let pinValue = '';
 
-function getCategories(){
-  const raw = localStorage.getItem(CATS_KEY);
-  return raw ? JSON.parse(raw) : [...DEFAULT_CATS];
+// --- PIN ---
+function pinPress(digit){
+  if(pinValue.length>=4) return;
+  pinValue += digit;
+  updatePinDots();
+  if(pinValue.length===4) setTimeout(checkPin, 120);
 }
-function saveCategories(cats){ localStorage.setItem(CATS_KEY, JSON.stringify(cats)); }
-
-function catBadge(cat){
-  const c = CAT_COLORS[cat] || DEFAULT_CAT_COLOR;
-  return `<span class="badge" style="background:${c.bg};color:${c.color}">${cat}</span>`;
+function pinDel(){
+  pinValue = pinValue.slice(0,-1);
+  updatePinDots();
+  document.getElementById('pin-error').textContent='';
+}
+function updatePinDots(){
+  for(let i=0;i<4;i++){
+    document.getElementById('dot-'+i).classList.toggle('filled', i<pinValue.length);
+  }
+}
+function checkPin(){
+  if(pinValue===CORRECT_PIN){
+    sessionStorage.setItem(PIN_KEY,'1');
+    document.getElementById('pin-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    init();
+  } else {
+    document.getElementById('pin-error').textContent='Nesprávný PIN, zkus to znovu.';
+    pinValue='';
+    updatePinDots();
+  }
+}
+function checkSession(){
+  if(sessionStorage.getItem(PIN_KEY)==='1'){
+    document.getElementById('pin-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    return true;
+  }
+  return false;
 }
 
+// --- Supabase ---
+async function api(method,table,body,query=''){
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`,{
+    method,headers:HEADERS,
+    body:body?JSON.stringify(body):undefined
+  });
+  if(!res.ok){const e=await res.text();throw new Error(e);}
+  const text=await res.text();
+  return text?JSON.parse(text):null;
+}
 function setSync(state){
-  const el = document.getElementById('sync-status');
+  const el=document.getElementById('sync-status');
   if(state==='syncing'){el.textContent='↻';el.className='sync-indicator syncing';}
   else if(state==='ok'){el.textContent='✓';el.className='sync-indicator ok';setTimeout(()=>{el.textContent='';},2000);}
   else{el.textContent='!';el.className='sync-indicator err';}
 }
 
-async function api(method, table, body, query=''){
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`,{
-    method, headers:HEADERS,
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if(!res.ok){const e=await res.text();throw new Error(e);}
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+// --- Categories ---
+function getCategories(){
+  const raw=localStorage.getItem(CATS_KEY);
+  return raw?JSON.parse(raw):[...DEFAULT_CATS];
+}
+function saveCategories(cats){localStorage.setItem(CATS_KEY,JSON.stringify(cats));}
+function catBadge(cat){
+  const c=CAT_COLORS[cat]||DEFAULT_CAT_COLOR;
+  return `<span class="badge" style="background:${c.bg};color:${c.color}">${cat}</span>`;
+}
+function fillCatSelect(selectId){
+  const cats=getCategories();
+  document.getElementById(selectId).innerHTML=cats.map(c=>`<option value="${c}">${c}</option>`).join('');
 }
 
+// --- Products ---
 async function loadProducts(){
   setSync('syncing');
-  try {
-    products = await api('GET','products',null,'?order=name.asc');
+  try{
+    products=await api('GET','products',null,'?order=name.asc');
     setSync('ok');
     renderFilterBar();
     renderProducts();
-  } catch(e){
+  }catch(e){
     setSync('err');
     document.getElementById('product-list').innerHTML='<div class="empty-state">Chyba připojení k databázi.<br>Zkontroluj internet a obnov stránku.</div>';
   }
 }
 
 function renderFilterBar(){
-  const cats = ['Vše', ...getCategories()];
-  document.getElementById('filter-bar').innerHTML = cats.map(c=>
+  const cats=['Vše',...getCategories()];
+  document.getElementById('filter-bar').innerHTML=cats.map(c=>
     `<button class="filter-chip ${c===activeFilter?'active':''}" onclick="setFilter('${c}')">${c}</button>`
   ).join('');
 }
-
-function setFilter(cat){
-  activeFilter = cat;
-  renderFilterBar();
-  renderProducts();
-}
-
-function applyFilters(){
-  renderProducts();
-}
+function setFilter(cat){activeFilter=cat;renderFilterBar();renderProducts();}
+function applyFilters(){renderProducts();}
 
 function renderProducts(){
-  const q = document.getElementById('search').value.toLowerCase();
-  const filtered = products.filter(p=>{
-    const matchQ = p.name.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q);
-    const matchCat = activeFilter==='Vše' || p.cat===activeFilter;
-    return matchQ && matchCat;
+  const q=document.getElementById('search').value.toLowerCase();
+  const filtered=products.filter(p=>{
+    const mq=p.name.toLowerCase().includes(q)||p.cat.toLowerCase().includes(q);
+    const mc=activeFilter==='Vše'||p.cat===activeFilter;
+    return mq&&mc;
   });
-  const el = document.getElementById('product-list');
+  const el=document.getElementById('product-list');
   if(!filtered.length){el.innerHTML='<div class="empty-state">Žádný produkt nenalezen.</div>';return;}
-  el.innerHTML = filtered.map(p=>{
-    const total = p.sklad+p.automat;
-    const low = p.sklad<=p.min;
-    const skladClass = p.sklad===0?'zero':low?'low':'';
+  el.innerHTML=filtered.map(p=>{
+    const total=p.sklad+p.automat;
+    
+    const sc=p.sklad===0?'low':'';
     return `<div class="product-card">
       <div class="product-name">${p.name}</div>
       <div class="product-cat">${catBadge(p.cat)}</div>
       <div class="stock-row">
-        <div class="stock-box"><span class="stock-label">Ve skladu</span><span class="stock-val ${skladClass}">${p.sklad}</span></div>
+        <div class="stock-box"><span class="stock-label">Ve skladu</span><span class="stock-val ${sc}">${p.sklad}</span></div>
         <div class="stock-box"><span class="stock-label">V automatu</span><span class="stock-val ${p.automat===0?'zero':''}">${p.automat}</span></div>
         <div class="stock-box"><span class="stock-label">Celkem</span><span class="stock-val">${total}</span></div>
       </div>
@@ -284,19 +368,19 @@ function renderProducts(){
 }
 
 function renderOrder(){
-  const low = products.filter(p=>p.sklad<=p.min);
-  const el = document.getElementById('order-list');
-  if(!low.length){el.innerHTML='<div class="empty-state">Vše v pořádku ✓<br>Není co objednávat.</div>';return;}
-  el.innerHTML=`<div class="section-title">Je čas objednat — ${low.length} produktů</div>`+
+  const low=products.filter(p=>p.sklad===0);
+  const el=document.getElementById('order-list');
+  if(!low.length){el.innerHTML='<div class="empty-state">Vše v pořádku ✓<br>Sklad je zásobený.</div>';return;}
+  el.innerHTML=`<div class="section-title">Sklad vyčerpán — ${low.length} produktů k objednání</div>`+
     low.map(p=>`<div class="alert-card">
       <div class="product-name">${p.name}</div>
       <div class="product-cat">${catBadge(p.cat)}</div>
-      <div class="alert-msg">Sklad: <strong>${p.sklad} ks</strong> · Minimum: ${p.min} ks</div>
+      <div class="alert-msg">Sklad: <strong>0 ks</strong> · V automatu: ${p.automat} ks</div>
     </div>`).join('');
 }
 
 function renderInventura(){
-  const el = document.getElementById('inventura-list');
+  const el=document.getElementById('inventura-list');
   el.innerHTML=`
     <p style="font-size:14px;color:#555;margin-bottom:12px;line-height:1.5">Projdi fyzicky sklad a automat. Zadej skutečné počty — systém opraví rozdíly a zaznamená je do historie.</p>
     <button class="btn primary" style="width:100%;margin-bottom:16px;padding:12px" onclick="openInventuraModal()">Spustit inventuru</button>
@@ -317,15 +401,14 @@ function renderInventura(){
 }
 
 function renderSettings(){
-  const cats = getCategories();
-  const el = document.getElementById('settings-content');
-  const counts = {};
-  products.forEach(p=>{ counts[p.cat]=(counts[p.cat]||0)+1; });
-  el.innerHTML=`
+  const cats=getCategories();
+  const counts={};
+  products.forEach(p=>{counts[p.cat]=(counts[p.cat]||0)+1;});
+  document.getElementById('settings-content').innerHTML=`
     <div class="settings-section">
       <h3>Správa kategorií</h3>
       <div id="cat-list">
-        ${cats.map((c,i)=>`
+        ${cats.map(c=>`
           <div class="cat-row">
             <span>${catBadge(c)}</span>
             <span class="cat-name">${c}</span>
@@ -338,21 +421,35 @@ function renderSettings(){
         <button class="btn primary" style="flex:none;padding:9px 14px" onclick="addCategory()">Přidat</button>
       </div>
     </div>
-    <div class="settings-section" style="margin-top:4px">
+    <div class="settings-section">
       <h3>Informace</h3>
       <p style="font-size:13px;color:#888;line-height:1.6">
-        Verze: <strong>v1.2.0</strong><br>
+        Verze: <strong>v1.3.0</strong><br>
         Databáze: Supabase<br>
         Produktů celkem: <strong>${products.length}</strong>
       </p>
+    </div>
+    <div class="settings-section">
+      <h3>Odhlášení</h3>
+      <p style="font-size:13px;color:#888;margin-bottom:12px">PIN se pamatuje do zavření záložky.</p>
+      <button class="btn red" style="width:100%;padding:10px" onclick="logout()">Odhlásit se</button>
     </div>`;
 }
 
+function logout(){
+  sessionStorage.removeItem(PIN_KEY);
+  document.getElementById('app').style.display='none';
+  document.getElementById('pin-screen').style.display='flex';
+  pinValue='';
+  updatePinDots();
+  document.getElementById('pin-error').textContent='';
+}
+
 function addCategory(){
-  const input = document.getElementById('newCatName');
-  const name = input.value.trim();
+  const input=document.getElementById('newCatName');
+  const name=input.value.trim();
   if(!name) return;
-  const cats = getCategories();
+  const cats=getCategories();
   if(cats.includes(name)){alert('Kategorie již existuje.');return;}
   cats.push(name);
   saveCategories(cats);
@@ -362,23 +459,13 @@ function addCategory(){
 }
 
 function deleteCategory(cat){
-  const counts = {};
-  products.forEach(p=>{ counts[p.cat]=(counts[p.cat]||0)+1; });
-  if(counts[cat]>0){
-    alert(`Kategorii "${cat}" nelze smazat — obsahuje ${counts[cat]} produktů. Nejdřív přeřaď produkty jinam.`);
-    return;
-  }
+  const counts={};
+  products.forEach(p=>{counts[p.cat]=(counts[p.cat]||0)+1;});
+  if(counts[cat]>0){alert(`Kategorii "${cat}" nelze smazat — obsahuje ${counts[cat]} produktů.`);return;}
   if(!confirm(`Smazat kategorii "${cat}"?`)) return;
-  const cats = getCategories().filter(c=>c!==cat);
-  saveCategories(cats);
+  saveCategories(getCategories().filter(c=>c!==cat));
   renderSettings();
   renderFilterBar();
-}
-
-function fillCatSelect(selectId){
-  const cats = getCategories();
-  const sel = document.getElementById(selectId);
-  sel.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
 }
 
 function openInventuraModal(){
@@ -398,8 +485,8 @@ function openInventuraModal(){
 
 async function confirmInventura(){
   setSync('syncing');
-  try {
-    const historyRows=[], updates=[];
+  try{
+    const historyRows=[],updates=[];
     products.forEach(p=>{
       const ns=parseInt(document.getElementById('inv-sklad-'+p.id)?.value);
       const na=parseInt(document.getElementById('inv-automat-'+p.id)?.value);
@@ -420,7 +507,7 @@ async function confirmInventura(){
     alert(`Inventura uložena. Opraveno ${updates.length} produktů.`);
     await loadProducts();
     renderInventura();
-  } catch(e){setSync('err');alert('Chyba při ukládání: '+e.message);}
+  }catch(e){setSync('err');alert('Chyba při ukládání: '+e.message);}
 }
 
 function openPrijem(id){
@@ -432,20 +519,17 @@ function openPrijem(id){
   document.getElementById('modal-prijem').classList.add('open');
   setTimeout(()=>document.getElementById('prijemQty').focus(),300);
 }
-
 async function confirmPrijem(){
   const qty=parseInt(document.getElementById('prijemQty').value)||0;
   const min=parseInt(document.getElementById('prijemMin').value);
   if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p=products.find(x=>x.id===activeProductId);
   setSync('syncing');
-  try {
+  try{
     await api('PATCH','products',{sklad:p.sklad+qty,min:isNaN(min)?p.min:min},`?id=eq.${p.id}`);
     await api('POST','history',[{product_id:p.id,product_name:p.name,type:'prijem',qty}]);
-    setSync('ok');
-    closeModal('modal-prijem');
-    await loadProducts();
-  } catch(e){setSync('err');alert('Chyba: '+e.message);}
+    setSync('ok');closeModal('modal-prijem');await loadProducts();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function openPresun(id){
@@ -456,20 +540,17 @@ function openPresun(id){
   document.getElementById('modal-presun').classList.add('open');
   setTimeout(()=>document.getElementById('presunQty').focus(),300);
 }
-
 async function confirmPresun(){
   const qty=parseInt(document.getElementById('presunQty').value)||0;
   if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p=products.find(x=>x.id===activeProductId);
   if(qty>p.sklad){alert(`Nedostatek zásob ve skladu. Dostupné: ${p.sklad} ks.`);return;}
   setSync('syncing');
-  try {
+  try{
     await api('PATCH','products',{sklad:p.sklad-qty,automat:p.automat+qty},`?id=eq.${p.id}`);
     await api('POST','history',[{product_id:p.id,product_name:p.name,type:'presun',qty}]);
-    setSync('ok');
-    closeModal('modal-presun');
-    await loadProducts();
-  } catch(e){setSync('err');alert('Chyba: '+e.message);}
+    setSync('ok');closeModal('modal-presun');await loadProducts();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function openAddProduct(){
@@ -478,25 +559,22 @@ function openAddProduct(){
   fillCatSelect('newCat');
   document.getElementById('modal-addproduct').classList.add('open');
 }
-
 async function confirmAddProduct(){
   const name=document.getElementById('newName').value.trim();
   const cat=document.getElementById('newCat').value;
   const min=parseInt(document.getElementById('newMin').value)||5;
   if(!name){alert('Zadej název produktu.');return;}
   setSync('syncing');
-  try {
+  try{
     await api('POST','products',[{name,cat,sklad:0,automat:0,min}]);
-    setSync('ok');
-    closeModal('modal-addproduct');
-    await loadProducts();
-  } catch(e){setSync('err');alert('Chyba: '+e.message);}
+    setSync('ok');closeModal('modal-addproduct');await loadProducts();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 async function renderHistory(){
   const el=document.getElementById('history-list');
   el.innerHTML='<div class="loading">Načítám historii...</div>';
-  try {
+  try{
     const history=await api('GET','history',null,'?order=created_at.desc&limit=100');
     if(!history.length){el.innerHTML='<div class="empty-state">Zatím žádné pohyby.</div>';return;}
     let html='',lastDate='';
@@ -518,14 +596,14 @@ async function renderHistory(){
       </div>`;
     });
     el.innerHTML=html;
-  } catch(e){el.innerHTML='<div class="empty-state">Chyba načítání historie.</div>';}
+  }catch(e){el.innerHTML='<div class="empty-state">Chyba načítání historie.</div>';}
 }
 
 function switchTab(tab){
   activeTab=tab;
   const tabs=['sklad','objednat','inventura','historie','nastaveni'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',tabs[i]===tab));
-  tabs.forEach(t=>{ document.getElementById('tab-'+t).style.display=t===tab?'block':'none'; });
+  tabs.forEach(t=>{document.getElementById('tab-'+t).style.display=t===tab?'block':'none';});
   if(tab==='sklad') renderProducts();
   else if(tab==='objednat') renderOrder();
   else if(tab==='inventura') renderInventura();
@@ -533,9 +611,9 @@ function switchTab(tab){
   else if(tab==='nastaveni') renderSettings();
 }
 
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>{
-  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); });
+  m.addEventListener('click',e=>{if(e.target===m) m.classList.remove('open');});
 });
 
 async function seedProducts(){
@@ -615,7 +693,10 @@ async function init(){
   }
 }
 
-init();
+// Start
+if(!checkSession()) {
+  // PIN screen is shown by default
+}
 </script>
 </body>
 </html>
