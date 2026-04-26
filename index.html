@@ -33,7 +33,6 @@ input:focus{border-color:#888;background:#fff}
 .btn:active{opacity:0.7}
 .btn.green{border-color:#27ae60;color:#27ae60;background:#f0faf4}
 .btn.blue{border-color:#2980b9;color:#2980b9;background:#f0f6fc}
-.btn.red{border-color:#c0392b;color:#c0392b;background:#fdf0ef}
 .btn.primary{background:#111;color:#fff;border-color:#111}
 .btn.gray{background:#f5f5f5;color:#555;border-color:#ddd}
 .section-title{font-size:12px;font-weight:600;color:#888;margin:16px 0 8px;text-transform:uppercase;letter-spacing:0.05em}
@@ -43,7 +42,6 @@ input:focus{border-color:#888;background:#fff}
 .history-detail{font-size:12px;color:#888;margin-top:1px}
 .history-change{font-size:14px;font-weight:600;white-space:nowrap;margin-left:8px}
 .history-change.plus{color:#27ae60}
-.history-change.minus{color:#c0392b}
 .history-change.move{color:#2980b9}
 .history-change.inv{color:#8e44ad}
 .alert-card{background:#fdf0ef;border:1px solid #e8b4b0;border-radius:14px;padding:12px;margin-bottom:8px}
@@ -64,27 +62,19 @@ input:focus{border-color:#888;background:#fff}
 .badge.drogerie{background:#fce7f3;color:#831843}
 .badge.ostatni{background:#f3f4f6;color:#374151}
 .empty-state{text-align:center;padding:48px 16px;color:#aaa;font-size:15px;line-height:1.6}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
-.stat-card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px}
-.stat-label{font-size:12px;color:#888;margin-bottom:4px}
-.stat-val{font-size:24px;font-weight:700;color:#111}
 .inv-card{background:#fff;border:1px solid #e8e8e8;border-radius:14px;padding:12px;margin-bottom:8px}
-.inv-card .product-name{margin-bottom:2px}
-.inv-row{display:flex;align-items:center;gap:8px;margin-top:10px}
-.inv-row label{font-size:13px;color:#888;min-width:70px}
-.inv-row input{flex:1;padding:8px 10px;font-size:16px;border-radius:8px;border:1px solid #ddd;text-align:center;font-family:inherit}
-.inv-expected{font-size:13px;color:#888;margin-top:6px}
-.inv-diff{font-size:13px;font-weight:600;margin-top:4px}
-.inv-diff.neg{color:#c0392b}
-.inv-diff.pos{color:#27ae60}
-.inv-diff.zero{color:#888}
 .drag-handle{width:36px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 16px}
+.loading{text-align:center;padding:40px 16px;color:#aaa;font-size:15px}
+.sync-indicator{font-size:12px;color:#aaa;margin-left:4px}
+.sync-indicator.syncing{color:#f39c12}
+.sync-indicator.ok{color:#27ae60}
+.sync-indicator.err{color:#c0392b}
 </style>
 </head>
 <body>
 
 <div class="top-bar">
-  <h1>🏪 Sklad & Automat</h1>
+  <h1>🏪 Sklad & Automat <span class="sync-indicator" id="sync-status"></span></h1>
   <button class="btn" style="flex:none;padding:7px 13px;font-size:13px" onclick="openAddProduct()">+ Produkt</button>
 </div>
 <div class="tab-bar">
@@ -96,17 +86,11 @@ input:focus{border-color:#888;background:#fff}
 <div class="content">
   <div id="tab-sklad">
     <input class="search-bar" type="text" placeholder="🔍 Hledat produkt..." oninput="renderProducts(this.value)" id="search">
-    <div id="product-list"></div>
+    <div id="product-list"><div class="loading">Načítám data...</div></div>
   </div>
-  <div id="tab-objednat" style="display:none">
-    <div id="order-list"></div>
-  </div>
-  <div id="tab-inventura" style="display:none">
-    <div id="inventura-list"></div>
-  </div>
-  <div id="tab-historie" style="display:none">
-    <div id="history-list"></div>
-  </div>
+  <div id="tab-objednat" style="display:none"><div id="order-list"></div></div>
+  <div id="tab-inventura" style="display:none"><div id="inventura-list"></div></div>
+  <div id="tab-historie" style="display:none"><div id="history-list"></div></div>
 </div>
 
 <!-- Modal: Příjem -->
@@ -126,7 +110,7 @@ input:focus{border-color:#888;background:#fff}
   </div>
 </div>
 
-<!-- Modal: Přesun do automatu -->
+<!-- Modal: Přesun -->
 <div id="modal-presun" class="modal-overlay">
   <div class="modal">
     <div class="drag-handle"></div>
@@ -160,7 +144,7 @@ input:focus{border-color:#888;background:#fff}
   </div>
 </div>
 
-<!-- Modal: Inventura detail -->
+<!-- Modal: Inventura -->
 <div id="modal-inventura" class="modal-overlay">
   <div class="modal">
     <div class="drag-handle"></div>
@@ -175,113 +159,144 @@ input:focus{border-color:#888;background:#fff}
 </div>
 
 <script>
-const PRODUCTS_KEY = 'sklad_v1_products';
-const HISTORY_KEY = 'sklad_v1_history';
-let activeTab = 'sklad';
+const SUPABASE_URL = 'https://snoxqbeugghtrxhokjfw.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_66cPTPZRybZW6yzQ04688A_K3NSj-XY';
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY,
+  'Prefer': 'return=representation'
+};
+
+let products = [];
 let activeProductId = null;
-let invProductIds = [];
+let activeTab = 'sklad';
 
-const defaultProducts = [
-  {id:1,name:"Energy Cookie BIO (čokoláda s lískovými ořechy)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:2,name:"Energy gel (mango)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:3,name:"Nut Butter Cups BIO (arašídové máslo)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:4,name:"Flapjack (hruška/med)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:5,name:"Trouble Protein Bar (kokos s mléčnou čokoládou)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:6,name:"Double Trouble Protein Bar (pistácie)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:7,name:"Protein Milkshake (kokosový krém)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:8,name:"Protein Milkshake (kakao)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:9,name:"Electrolyte Drink (mandarinka s citronem)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:10,name:"Electrolyte Drink (šťavnaté mango)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:11,name:"Double Trouble Protein Bar (vanilka se slaným karamelem)",cat:"Vilgain",sklad:0,automat:0,min:5},
-  {id:12,name:"Pom-Bär Original",cat:"Slané",sklad:0,automat:0,min:5},
-  {id:13,name:"Pan Kombučák - Ostružina",cat:"Nápoje",sklad:0,automat:0,min:3},
-  {id:14,name:"Pan Kombučák Máta & Lemon Grass",cat:"Nápoje",sklad:0,automat:0,min:3},
-  {id:15,name:"Ovesná svačinka Fitneska s lískovými oříšky",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:16,name:"Ovocné pyré 100% jablko",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:17,name:"Náplasti",cat:"Drogerie",sklad:0,automat:0,min:3},
-  {id:18,name:"Kabanos Cheese Snack !t",cat:"Slané",sklad:0,automat:0,min:3},
-  {id:19,name:"Mini müsli tyčinky Meruňka",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:20,name:"Tampony Ria",cat:"Drogerie",sklad:0,automat:0,min:3},
-  {id:21,name:"Vlhčené ubrousky",cat:"Drogerie",sklad:0,automat:0,min:3},
-  {id:22,name:"Indulona Original",cat:"Drogerie",sklad:0,automat:0,min:3},
-  {id:23,name:"Mila",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:24,name:"Capri Sun Multivitamin",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:25,name:"Capri Sun Mystic Dragon",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:26,name:"Natura Jemně perlivá",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:27,name:"Natura Neperlivá",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:28,name:"Vincentka",cat:"Nápoje",sklad:0,automat:0,min:3},
-  {id:29,name:"Red Bull 0,33l",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:30,name:"Vitamin water",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:31,name:"Fuze Tea Jahoda Aloe vera",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:32,name:"Sprite",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:33,name:"Tonic Kinley Ginger Ale",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:34,name:"Coca Cola",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:35,name:"Coca Cola Zero",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:36,name:"Fanta",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:37,name:"Fanta Zero Jablko Liči",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:38,name:"Powerade",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:39,name:"Cappy Lemonade",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:40,name:"Cappy Jahoda mix",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:41,name:"Cappy Pomeranč",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:42,name:"Mošt Hruška jablko",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:43,name:"Mošt Jablko 100%",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:44,name:"Birell Active Pomelo grep",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:45,name:"Tiger Aloha",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:46,name:"Tiger",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:47,name:"Bon Pari",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:48,name:"Tyčinky kinder",cat:"Slané",sklad:0,automat:0,min:5},
-  {id:49,name:"Brumík",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:50,name:"Mysli na zdraví ořech",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:51,name:"Fruit Gummies jahoda",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:52,name:"Fruko Toma jahoda",cat:"Nápoje",sklad:0,automat:0,min:5},
-  {id:53,name:"Sušenka Attack",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:54,name:"Snickers",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:55,name:"Margot",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:56,name:"Corny",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:57,name:"KitKat",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:58,name:"Kapesníčky",cat:"Drogerie",sklad:0,automat:0,min:3},
-  {id:59,name:"Kalhotky XS/S",cat:"Drogerie",sklad:0,automat:0,min:2},
-  {id:60,name:"Kalhotky M/L",cat:"Drogerie",sklad:0,automat:0,min:2},
-  {id:61,name:"Tyčinky slané",cat:"Slané",sklad:0,automat:0,min:5},
-  {id:62,name:"Tatranka",cat:"Sladkosti",sklad:0,automat:0,min:5},
-  {id:63,name:"Romerquelle Lemongrass",cat:"Nápoje",sklad:0,automat:0,min:5}
-];
+function setSync(state) {
+  const el = document.getElementById('sync-status');
+  if(state === 'syncing') { el.textContent = '↻'; el.className = 'sync-indicator syncing'; }
+  else if(state === 'ok') { el.textContent = '✓'; el.className = 'sync-indicator ok'; setTimeout(()=>{ el.textContent=''; }, 2000); }
+  else { el.textContent = '!'; el.className = 'sync-indicator err'; }
+}
 
-function loadProducts(){
-  const raw = localStorage.getItem(PRODUCTS_KEY);
-  return raw ? JSON.parse(raw) : defaultProducts.map(p=>({...p}));
+async function api(method, table, body, query='') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
+    method, headers: HEADERS,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if(!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
-function saveProducts(p){ localStorage.setItem(PRODUCTS_KEY, JSON.stringify(p)); }
-function loadHistory(){
-  const raw = localStorage.getItem(HISTORY_KEY);
-  return raw ? JSON.parse(raw) : [];
+
+async function loadProducts() {
+  setSync('syncing');
+  try {
+    products = await api('GET', 'products', null, '?order=name.asc');
+    setSync('ok');
+    renderProducts(document.getElementById('search').value);
+  } catch(e) {
+    setSync('err');
+    document.getElementById('product-list').innerHTML = '<div class="empty-state">Chyba připojení k databázi.<br>Zkontroluj internet a obnov stránku.</div>';
+  }
 }
-function saveHistory(h){ localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }
+
+async function seedProducts() {
+  const defaults = [
+    {name:"Energy Cookie BIO (čokoláda s lískovými ořechy)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Energy gel (mango)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Nut Butter Cups BIO (arašídové máslo)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Flapjack (hruška/med)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Trouble Protein Bar (kokos s mléčnou čokoládou)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Double Trouble Protein Bar (pistácie)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Protein Milkshake (kokosový krém)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Protein Milkshake (kakao)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Electrolyte Drink (mandarinka s citronem)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Electrolyte Drink (šťavnaté mango)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Double Trouble Protein Bar (vanilka se slaným karamelem)",cat:"Vilgain",sklad:0,automat:0,min:5},
+    {name:"Pom-Bär Original",cat:"Slané",sklad:0,automat:0,min:5},
+    {name:"Pan Kombučák - Ostružina",cat:"Nápoje",sklad:0,automat:0,min:3},
+    {name:"Pan Kombučák Máta & Lemon Grass",cat:"Nápoje",sklad:0,automat:0,min:3},
+    {name:"Ovesná svačinka Fitneska s lískovými oříšky",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Ovocné pyré 100% jablko",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Náplasti",cat:"Drogerie",sklad:0,automat:0,min:3},
+    {name:"Kabanos Cheese Snack !t",cat:"Slané",sklad:0,automat:0,min:3},
+    {name:"Mini müsli tyčinky Meruňka",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Tampony Ria",cat:"Drogerie",sklad:0,automat:0,min:3},
+    {name:"Vlhčené ubrousky",cat:"Drogerie",sklad:0,automat:0,min:3},
+    {name:"Indulona Original",cat:"Drogerie",sklad:0,automat:0,min:3},
+    {name:"Mila",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Capri Sun Multivitamin",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Capri Sun Mystic Dragon",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Natura Jemně perlivá",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Natura Neperlivá",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Vincentka",cat:"Nápoje",sklad:0,automat:0,min:3},
+    {name:"Red Bull 0,33l",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Vitamin water",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Fuze Tea Jahoda Aloe vera",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Sprite",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Tonic Kinley Ginger Ale",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Coca Cola",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Coca Cola Zero",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Fanta",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Fanta Zero Jablko Liči",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Powerade",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Cappy Lemonade",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Cappy Jahoda mix",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Cappy Pomeranč",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Mošt Hruška jablko",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Mošt Jablko 100%",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Birell Active Pomelo grep",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Tiger Aloha",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Tiger",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Bon Pari",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Tyčinky kinder",cat:"Slané",sklad:0,automat:0,min:5},
+    {name:"Brumík",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Mysli na zdraví ořech",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Fruit Gummies jahoda",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Fruko Toma jahoda",cat:"Nápoje",sklad:0,automat:0,min:5},
+    {name:"Sušenka Attack",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Snickers",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Margot",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Corny",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"KitKat",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Kapesníčky",cat:"Drogerie",sklad:0,automat:0,min:3},
+    {name:"Kalhotky XS/S",cat:"Drogerie",sklad:0,automat:0,min:2},
+    {name:"Kalhotky M/L",cat:"Drogerie",sklad:0,automat:0,min:2},
+    {name:"Tyčinky slané",cat:"Slané",sklad:0,automat:0,min:5},
+    {name:"Tatranka",cat:"Sladkosti",sklad:0,automat:0,min:5},
+    {name:"Romerquelle Lemongrass",cat:"Nápoje",sklad:0,automat:0,min:5}
+  ];
+  await api('POST', 'products', defaults);
+  await loadProducts();
+}
+
+async function init() {
+  await loadProducts();
+  if(products.length === 0) {
+    if(confirm('Databáze je prázdná. Načíst výchozích 63 produktů?')) {
+      await seedProducts();
+    }
+  }
+}
 
 function catBadge(cat){
-  const map = {'Vilgain':'vilgain','Nápoje':'napoje','Sladkosti':'sladkosti','Slané':'slane','Drogerie':'drogerie'};
-  const cl = map[cat] || 'ostatni';
-  return `<span class="badge ${cl}">${cat}</span>`;
+  const map={'Vilgain':'vilgain','Nápoje':'napoje','Sladkosti':'sladkosti','Slané':'slane','Drogerie':'drogerie'};
+  return `<span class="badge ${map[cat]||'ostatni'}">${cat}</span>`;
 }
 
 function switchTab(tab){
   activeTab = tab;
   const tabs = ['sklad','objednat','inventura','historie'];
-  document.querySelectorAll('.tab').forEach((t,i)=>{
-    t.classList.toggle('active', tabs[i]===tab);
-  });
-  tabs.forEach(t=>{
-    document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
-  });
-  const q = document.getElementById('search').value;
-  if(tab==='sklad') renderProducts(q);
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', tabs[i]===tab));
+  tabs.forEach(t=>{ document.getElementById('tab-'+t).style.display = t===tab?'block':'none'; });
+  if(tab==='sklad') renderProducts(document.getElementById('search').value);
   else if(tab==='objednat') renderOrder();
   else if(tab==='inventura') renderInventura();
   else renderHistory();
 }
 
 function renderProducts(q=''){
-  const products = loadProducts();
   const q2 = q.toLowerCase();
   const filtered = products.filter(p=>p.name.toLowerCase().includes(q2)||p.cat.toLowerCase().includes(q2));
   const el = document.getElementById('product-list');
@@ -289,7 +304,7 @@ function renderProducts(q=''){
   el.innerHTML = filtered.map(p=>{
     const total = p.sklad + p.automat;
     const low = p.sklad <= p.min;
-    const skladClass = p.sklad === 0 ? 'zero' : low ? 'low' : '';
+    const skladClass = p.sklad===0?'zero':low?'low':'';
     return `<div class="product-card">
       <div class="product-name">${p.name}</div>
       <div class="product-cat">${catBadge(p.cat)}</div>
@@ -307,31 +322,24 @@ function renderProducts(q=''){
 }
 
 function renderOrder(){
-  const products = loadProducts();
-  const low = products.filter(p=>p.sklad <= p.min);
+  const low = products.filter(p=>p.sklad<=p.min);
   const el = document.getElementById('order-list');
-  if(!low.length){
-    el.innerHTML='<div class="empty-state">Vše v pořádku ✓<br>Není co objednávat.</div>';
-    return;
-  }
-  el.innerHTML = `<div class="section-title">Je čas objednat — ${low.length} produktů</div>` +
+  if(!low.length){el.innerHTML='<div class="empty-state">Vše v pořádku ✓<br>Není co objednávat.</div>';return;}
+  el.innerHTML = `<div class="section-title">Je čas objednat — ${low.length} produktů</div>`+
     low.map(p=>`<div class="alert-card">
       <div class="product-name">${p.name}</div>
       <div class="product-cat">${catBadge(p.cat)}</div>
-      <div class="alert-msg">Sklad: <strong>${p.sklad} ks</strong> &nbsp;·&nbsp; Minimum: ${p.min} ks</div>
+      <div class="alert-msg">Sklad: <strong>${p.sklad} ks</strong> · Minimum: ${p.min} ks</div>
     </div>`).join('');
 }
 
 function renderInventura(){
-  const products = loadProducts();
   const el = document.getElementById('inventura-list');
   el.innerHTML = `
     <p style="font-size:14px;color:#555;margin-bottom:12px;line-height:1.5">
       Projdi fyzicky sklad a automat. Zadej skutečné počty — systém opraví rozdíly a zaznamená je do historie.
     </p>
-    <button class="btn primary" style="width:100%;margin-bottom:16px;padding:12px" onclick="openInventuraModal()">
-      Spustit inventuru
-    </button>
+    <button class="btn primary" style="width:100%;margin-bottom:16px;padding:12px" onclick="openInventuraModal()">Spustit inventuru</button>
     <div class="section-title">Aktuální stavy v systému</div>
     ${products.map(p=>`
       <div class="inv-card">
@@ -347,110 +355,104 @@ function renderInventura(){
             <span class="stock-val ${p.automat===0?'zero':''}">${p.automat}</span>
           </div>
         </div>
-      </div>
-    `).join('')}
-  `;
+      </div>`).join('')}`;
 }
 
 function openInventuraModal(){
-  const products = loadProducts();
-  invProductIds = products.map(p=>p.id);
-  const form = document.getElementById('inv-form');
-  form.innerHTML = products.map(p=>`
+  document.getElementById('inv-form').innerHTML = products.map(p=>`
     <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #f0f0f0">
       <div style="font-size:14px;font-weight:600;margin-bottom:2px">${p.name}</div>
-      <div style="font-size:12px;color:#888;margin-bottom:8px">Systém: sklad ${p.sklad} ks · automat ${p.automat} ks</div>
+      <div style="font-size:12px;color:#888;margin-bottom:8px">Systém: sklad ${p.sklad} · automat ${p.automat}</div>
       <div style="display:flex;gap:8px">
-        <div style="flex:1">
-          <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný sklad</label>
-          <input type="number" id="inv-sklad-${p.id}" min="0" value="${p.sklad}" inputmode="numeric" style="text-align:center">
-        </div>
-        <div style="flex:1">
-          <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný automat</label>
-          <input type="number" id="inv-automat-${p.id}" min="0" value="${p.automat}" inputmode="numeric" style="text-align:center">
-        </div>
+        <div style="flex:1"><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný sklad</label>
+          <input type="number" id="inv-sklad-${p.id}" min="0" value="${p.sklad}" inputmode="numeric" style="text-align:center"></div>
+        <div style="flex:1"><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný automat</label>
+          <input type="number" id="inv-automat-${p.id}" min="0" value="${p.automat}" inputmode="numeric" style="text-align:center"></div>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
   document.getElementById('modal-inventura').classList.add('open');
 }
 
-function confirmInventura(){
-  const products = loadProducts();
-  const history = loadHistory();
-  const ts = Date.now();
-  let changes = 0;
-
-  products.forEach(p=>{
-    const newSklad = parseInt(document.getElementById('inv-sklad-'+p.id)?.value) ?? p.sklad;
-    const newAutomat = parseInt(document.getElementById('inv-automat-'+p.id)?.value) ?? p.automat;
-    const diffSklad = newSklad - p.sklad;
-    const diffAutomat = newAutomat - p.automat;
-    if(diffSklad !== 0 || diffAutomat !== 0){
-      changes++;
-      const parts = [];
-      if(diffSklad!==0) parts.push(`sklad ${diffSklad>0?'+':''}${diffSklad}`);
-      if(diffAutomat!==0) parts.push(`automat ${diffAutomat>0?'+':''}${diffAutomat}`);
-      history.push({ts,type:'inventura',id:p.id,name:p.name,diffSklad,diffAutomat,note:parts.join(', ')});
-      p.sklad = isNaN(newSklad) ? p.sklad : newSklad;
-      p.automat = isNaN(newAutomat) ? p.automat : newAutomat;
+async function confirmInventura(){
+  setSync('syncing');
+  try {
+    const ts = new Date().toISOString();
+    const historyRows = [];
+    const updates = [];
+    products.forEach(p=>{
+      const ns = parseInt(document.getElementById('inv-sklad-'+p.id)?.value);
+      const na = parseInt(document.getElementById('inv-automat-'+p.id)?.value);
+      const ds = isNaN(ns)?0:ns-p.sklad;
+      const da = isNaN(na)?0:na-p.automat;
+      if(ds!==0||da!==0){
+        const parts=[];
+        if(ds!==0) parts.push(`sklad ${ds>0?'+':''}${ds}`);
+        if(da!==0) parts.push(`automat ${da>0?'+':''}${da}`);
+        updates.push({id:p.id,sklad:isNaN(ns)?p.sklad:ns,automat:isNaN(na)?p.automat:na});
+        historyRows.push({product_id:p.id,product_name:p.name,type:'inventura',note:parts.join(', '),diff_sklad:ds,diff_automat:da});
+      }
+    });
+    for(const u of updates){
+      await api('PATCH','products',{sklad:u.sklad,automat:u.automat},`?id=eq.${u.id}`);
     }
-  });
-
-  saveProducts(products);
-  saveHistory(history);
-  closeModal('modal-inventura');
-  alert(`Inventura uložena. Opraveno ${changes} produktů.`);
-  renderInventura();
+    if(historyRows.length) await api('POST','history',historyRows);
+    setSync('ok');
+    closeModal('modal-inventura');
+    alert(`Inventura uložena. Opraveno ${updates.length} produktů.`);
+    await loadProducts();
+    renderInventura();
+  } catch(e){ setSync('err'); alert('Chyba při ukládání: '+e.message); }
 }
 
 function openPrijem(id){
   activeProductId = id;
-  const p = loadProducts().find(x=>x.id===id);
+  const p = products.find(x=>x.id===id);
   document.getElementById('modal-prijem-sub').textContent = p.name;
   document.getElementById('prijemQty').value = 1;
-  document.getElementById('prijemMin').value = p.min || '';
+  document.getElementById('prijemMin').value = p.min||'';
   document.getElementById('modal-prijem').classList.add('open');
   setTimeout(()=>document.getElementById('prijemQty').focus(),300);
 }
-function confirmPrijem(){
+
+async function confirmPrijem(){
   const qty = parseInt(document.getElementById('prijemQty').value)||0;
   const min = parseInt(document.getElementById('prijemMin').value);
-  if(qty < 1){ alert('Zadej alespoň 1 kus.'); return; }
-  const products = loadProducts();
+  if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p = products.find(x=>x.id===activeProductId);
-  p.sklad += qty;
-  if(!isNaN(min)) p.min = min;
-  saveProducts(products);
-  const history = loadHistory();
-  history.push({ts:Date.now(),type:'prijem',id:p.id,name:p.name,qty});
-  saveHistory(history);
-  closeModal('modal-prijem');
-  renderProducts(document.getElementById('search').value);
+  setSync('syncing');
+  try {
+    const newSklad = p.sklad+qty;
+    const newMin = isNaN(min)?p.min:min;
+    await api('PATCH','products',{sklad:newSklad,min:newMin},`?id=eq.${p.id}`);
+    await api('POST','history',[{product_id:p.id,product_name:p.name,type:'prijem',qty}]);
+    setSync('ok');
+    closeModal('modal-prijem');
+    await loadProducts();
+  } catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function openPresun(id){
   activeProductId = id;
-  const p = loadProducts().find(x=>x.id===id);
+  const p = products.find(x=>x.id===id);
   document.getElementById('modal-presun-sub').textContent = `${p.name} · ve skladu: ${p.sklad} ks`;
   document.getElementById('presunQty').value = 1;
   document.getElementById('modal-presun').classList.add('open');
   setTimeout(()=>document.getElementById('presunQty').focus(),300);
 }
-function confirmPresun(){
+
+async function confirmPresun(){
   const qty = parseInt(document.getElementById('presunQty').value)||0;
-  if(qty < 1){ alert('Zadej alespoň 1 kus.'); return; }
-  const products = loadProducts();
+  if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p = products.find(x=>x.id===activeProductId);
-  if(qty > p.sklad){ alert(`Nedostatek zásob ve skladu. Dostupné: ${p.sklad} ks.`); return; }
-  p.sklad -= qty;
-  p.automat += qty;
-  saveProducts(products);
-  const history = loadHistory();
-  history.push({ts:Date.now(),type:'presun',id:p.id,name:p.name,qty});
-  saveHistory(history);
-  closeModal('modal-presun');
-  renderProducts(document.getElementById('search').value);
+  if(qty>p.sklad){alert(`Nedostatek zásob ve skladu. Dostupné: ${p.sklad} ks.`);return;}
+  setSync('syncing');
+  try {
+    await api('PATCH','products',{sklad:p.sklad-qty,automat:p.automat+qty},`?id=eq.${p.id}`);
+    await api('POST','history',[{product_id:p.id,product_name:p.name,type:'presun',qty}]);
+    setSync('ok');
+    closeModal('modal-presun');
+    await loadProducts();
+  } catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function openAddProduct(){
@@ -459,54 +461,55 @@ function openAddProduct(){
   document.getElementById('newMin').value=5;
   document.getElementById('modal-addproduct').classList.add('open');
 }
-function confirmAddProduct(){
+
+async function confirmAddProduct(){
   const name = document.getElementById('newName').value.trim();
-  const cat = document.getElementById('newCat').value.trim() || 'Ostatní';
+  const cat = document.getElementById('newCat').value.trim()||'Ostatní';
   const min = parseInt(document.getElementById('newMin').value)||5;
-  if(!name){ alert('Zadej název produktu.'); return; }
-  const products = loadProducts();
-  const newId = Math.max(...products.map(p=>p.id), 0) + 1;
-  products.push({id:newId,name,cat,sklad:0,automat:0,min});
-  saveProducts(products);
-  closeModal('modal-addproduct');
-  renderProducts('');
+  if(!name){alert('Zadej název produktu.');return;}
+  setSync('syncing');
+  try {
+    await api('POST','products',[{name,cat,sklad:0,automat:0,min}]);
+    setSync('ok');
+    closeModal('modal-addproduct');
+    await loadProducts();
+  } catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
-function closeModal(id){
-  document.getElementById(id).classList.remove('open');
+async function renderHistory(){
+  const el = document.getElementById('history-list');
+  el.innerHTML='<div class="loading">Načítám historii...</div>';
+  try {
+    const history = await api('GET','history',null,'?order=created_at.desc&limit=100');
+    if(!history.length){el.innerHTML='<div class="empty-state">Zatím žádné pohyby.</div>';return;}
+    let html='', lastDate='';
+    history.forEach(h=>{
+      const d = new Date(h.created_at);
+      const dateStr = d.toLocaleDateString('cs-CZ',{weekday:'short',day:'numeric',month:'long'});
+      if(dateStr!==lastDate){html+=`<div class="section-title">${dateStr}</div>`;lastDate=dateStr;}
+      const timeStr = d.toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+      let cls='', txt='';
+      if(h.type==='prijem'){cls='plus';txt=`+${h.qty} sklad`;}
+      else if(h.type==='presun'){cls='move';txt=`→ ${h.qty} automat`;}
+      else if(h.type==='inventura'){cls='inv';txt=`inv: ${h.note}`;}
+      html+=`<div class="history-item">
+        <div style="flex:1;min-width:0">
+          <div class="history-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.product_name}</div>
+          <div class="history-detail">${timeStr}</div>
+        </div>
+        <div class="history-change ${cls}">${txt}</div>
+      </div>`;
+    });
+    el.innerHTML=html;
+  } catch(e){el.innerHTML='<div class="empty-state">Chyba načítání historie.</div>';}
 }
+
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal-overlay').forEach(m=>{
-  m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('open'); });
+  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); });
 });
 
-function renderHistory(){
-  const history = loadHistory();
-  const el = document.getElementById('history-list');
-  if(!history.length){el.innerHTML='<div class="empty-state">Zatím žádné pohyby.</div>';return;}
-  const recent = [...history].reverse().slice(0,100);
-  let html = '';
-  let lastDate = '';
-  recent.forEach(h=>{
-    const d = new Date(h.ts);
-    const dateStr = d.toLocaleDateString('cs-CZ',{weekday:'short',day:'numeric',month:'long'});
-    if(dateStr!==lastDate){html+=`<div class="section-title">${dateStr}</div>`;lastDate=dateStr;}
-    const timeStr = d.toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-    let changeClass='', changeText='';
-    if(h.type==='prijem'){changeClass='plus';changeText=`+${h.qty} sklad`;}
-    else if(h.type==='presun'){changeClass='move';changeText=`→ ${h.qty} automat`;}
-    else if(h.type==='inventura'){changeClass='inv';changeText=`inv: ${h.note}`;}
-    html+=`<div class="history-item">
-      <div style="flex:1;min-width:0">
-        <div class="history-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.name}</div>
-        <div class="history-detail">${timeStr}</div>
-      </div>
-      <div class="history-change ${changeClass}">${changeText}</div>
-    </div>`;
-  });
-  el.innerHTML = html;
-}
-
-renderProducts();
+init();
 </script>
 </body>
 </html>
