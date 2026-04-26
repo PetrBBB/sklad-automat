@@ -159,7 +159,7 @@ input:focus{border-color:#888;background:#fff}
     <h2>Příjem do skladu</h2>
     <p class="modal-sub" id="modal-prijem-sub"></p>
     <label>Počet kusů</label>
-    <input type="number" id="prijemQty" min="1" value="1" inputmode="numeric">
+    <input type="number" id="prijemQty" min="1" value="" inputmode="numeric" placeholder="0" onfocus="this.value=''">
     <div class="modal-btns">
       <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-prijem')">Zrušit</button>
       <button class="btn primary" onclick="confirmPrijem()">✓ Potvrdit příjem</button>
@@ -174,7 +174,7 @@ input:focus{border-color:#888;background:#fff}
     <h2>Naskladnit do automatu</h2>
     <p class="modal-sub" id="modal-presun-sub"></p>
     <label>Počet kusů</label>
-    <input type="number" id="presunQty" min="1" value="1" inputmode="numeric">
+    <input type="number" id="presunQty" min="1" value="" inputmode="numeric" placeholder="0" onfocus="this.value=''">
     <div class="modal-btns">
       <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-presun')">Zrušit</button>
       <button class="btn primary" onclick="confirmPresun()">→ Přesunout</button>
@@ -341,7 +341,7 @@ function renderProducts(){
   const filtered=products.filter(p=>{
     const mq=p.name.toLowerCase().includes(q)||p.cat.toLowerCase().includes(q);
     const mc=activeFilter==='Vše'||p.cat===activeFilter;
-    return mq&&mc;
+    return mq&&mc&&p.order_status!=='vyrazeno';
   });
   const el=document.getElementById('product-list');
   if(!filtered.length){el.innerHTML='<div class="empty-state">Žádný produkt nenalezen.</div>';return;}
@@ -357,13 +357,14 @@ function renderProducts(){
       <div class="btn-row">
         <button class="btn green" onclick="openPrijem(${p.id})">+ Příjem</button>
         <button class="btn blue" onclick="openPresun(${p.id})">→ Automat</button>
+        <button class="btn" style="flex:none;padding:9px 10px;font-size:12px;color:#aaa;border-color:#ddd" onclick="vyraditProduct(${p.id})">Vyřadit</button>
       </div>
     </div>`;
   }).join('');
 }
 
 function renderOrder(){
-  const low=products.filter(p=>p.sklad===0);
+  const low=products.filter(p=>p.sklad===0&&p.order_status!=='vyrazeno');
   const el=document.getElementById('order-list');
   if(!low.length){el.innerHTML='<div class="empty-state">Vše v pořádku ✓<br>Sklad je zásobený.</div>';return;}
   const neobjednano=low.filter(p=>p.order_status!=='ordered');
@@ -390,6 +391,16 @@ function renderOrder(){
     </div>`).join('');
   }
   el.innerHTML=html;
+}
+
+async function vyraditProduct(id){
+  if(!confirm('Vyřadit produkt? Zmizí z celé aplikace. Vrátit ho lze v Nastavení.')) return;
+  setSync('syncing');
+  try{
+    await api('PATCH','products',{order_status:'vyrazeno'},`?id=eq.${id}`);
+    setSync('ok');
+    await loadProducts();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 async function toggleOrder(id, status){
@@ -423,7 +434,10 @@ function renderInventura(){
 function renderSettings(){
   const cats=getCategories();
   const counts={};
-  products.forEach(p=>{counts[p.cat]=(counts[p.cat]||0)+1;});
+  const vyrazene=products.filter(p=>p.order_status==='vyrazeno');
+  products.forEach(p=>{
+    if(p.order_status!=='vyrazeno') counts[p.cat]=(counts[p.cat]||0)+1;
+  });
   document.getElementById('settings-content').innerHTML=`
     <div class="settings-section">
       <h3>Správa kategorií</h3>
@@ -442,6 +456,14 @@ function renderSettings(){
       </div>
     </div>
     <div class="settings-section">
+      <h3>Vyřazené produkty</h3>
+      ${vyrazene.length===0 ? '<p style="font-size:13px;color:#aaa">Žádné vyřazené produkty.</p>' :
+        vyrazene.map(p=>`<div class="cat-row">
+          <span style="flex:1;font-size:14px;font-weight:500">${p.name}</span>
+          <button class="btn" style="flex:none;padding:5px 10px;font-size:12px;border-color:#27ae60;color:#27ae60" onclick="obnovitProduct(${p.id})">Obnovit</button>
+        </div>`).join('')}
+    </div>
+    <div class="settings-section">
       <h3>Informace</h3>
       <p style="font-size:13px;color:#888;line-height:1.6">
         Verze: <strong>v1.3.0</strong><br>
@@ -454,6 +476,16 @@ function renderSettings(){
       <p style="font-size:13px;color:#888;margin-bottom:12px">PIN se pamatuje do zavření záložky.</p>
       <button class="btn red" style="width:100%;padding:10px" onclick="logout()">Odhlásit se</button>
     </div>`;
+}
+
+async function obnovitProduct(id){
+  setSync('syncing');
+  try{
+    await api('PATCH','products',{order_status:'none'},`?id=eq.${id}`);
+    setSync('ok');
+    await loadProducts();
+    renderSettings();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function logout(){
@@ -533,7 +565,7 @@ function openPrijem(id){
   activeProductId=id;
   const p=products.find(x=>x.id===id);
   document.getElementById('modal-prijem-sub').textContent=p.name;
-  document.getElementById('prijemQty').value=1;
+  document.getElementById('prijemQty').value='';
   document.getElementById('modal-prijem').classList.add('open');
   setTimeout(()=>document.getElementById('prijemQty').focus(),300);
 }
@@ -553,7 +585,7 @@ function openPresun(id){
   activeProductId=id;
   const p=products.find(x=>x.id===id);
   document.getElementById('modal-presun-sub').textContent=`${p.name} · ve skladu: ${p.sklad} ks`;
-  document.getElementById('presunQty').value=1;
+  document.getElementById('presunQty').value='';
   document.getElementById('modal-presun').classList.add('open');
   setTimeout(()=>document.getElementById('presunQty').focus(),300);
 }
