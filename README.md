@@ -136,3 +136,8 @@ create policy "public access" on history for all using (true) with check (true);
 - PIN ochrana při otevření appky (4 číslice)
 - PIN se pamatuje do zavření záložky (sessionStorage)
 - Odhlášení v záložce Nastavení
+
+### v1.4.0
+- Odstraněno pole minimální zásoba (nepotřebné)
+- Záložka Objednat: stavy Neobjednáno / Objednáno
+- Příjem zboží automaticky resetuje stav objednávky
