@@ -346,7 +346,6 @@ function renderProducts(){
   const el=document.getElementById('product-list');
   if(!filtered.length){el.innerHTML='<div class="empty-state">Žádný produkt nenalezen.</div>';return;}
   el.innerHTML=filtered.map(p=>{
-    const total=p.sklad+p.automat;
     
     const sc=p.sklad===0?'low':'';
     return `<div class="product-card">
@@ -354,8 +353,6 @@ function renderProducts(){
       <div class="product-cat">${catBadge(p.cat)}</div>
       <div class="stock-row">
         <div class="stock-box"><span class="stock-label">Ve skladu</span><span class="stock-val ${sc}">${p.sklad}</span></div>
-        <div class="stock-box"><span class="stock-label">V automatu</span><span class="stock-val ${p.automat===0?'zero':''}">${p.automat}</span></div>
-        <div class="stock-box"><span class="stock-label">Celkem</span><span class="stock-val">${total}</span></div>
       </div>
       <div class="btn-row">
         <button class="btn green" onclick="openPrijem(${p.id})">+ Příjem</button>
