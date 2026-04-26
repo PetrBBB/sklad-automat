@@ -141,3 +141,8 @@ create policy "public access" on history for all using (true) with check (true);
 - Odstraněno pole minimální zásoba (nepotřebné)
 - Záložka Objednat: stavy Neobjednáno / Objednáno
 - Příjem zboží automaticky resetuje stav objednávky
+
+### v1.5.0
+- Pole počtu kusů je prázdné při otevření (není třeba mazat 1)
+- Vyřazení produktu — skryje ho z celé aplikace
+- Vyřazené produkty lze obnovit v záložce Nastavení
