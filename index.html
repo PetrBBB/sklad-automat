@@ -414,10 +414,7 @@ function renderInventura(){
         <div class="product-cat">${catBadge(p.cat)}</div>
         <div style="display:flex;gap:8px;margin-top:8px">
           <div class="stock-box" style="flex:1;background:#f5f5f5;border-radius:10px;padding:8px;text-align:center">
-            <span class="stock-label">Sklad</span><span class="stock-val ${p.sklad===0?'zero':''}">${p.sklad}</span>
-          </div>
-          <div class="stock-box" style="flex:1;background:#f5f5f5;border-radius:10px;padding:8px;text-align:center">
-            <span class="stock-label">Automat</span><span class="stock-val ${p.automat===0?'zero':''}">${p.automat}</span>
+            <span class="stock-label">Ve skladu</span><span class="stock-val ${p.sklad===0?'zero':''}">${p.sklad}</span>
           </div>
         </div>
       </div>`).join('')}`;
@@ -495,12 +492,11 @@ function openInventuraModal(){
   document.getElementById('inv-form').innerHTML=products.map(p=>`
     <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #f0f0f0">
       <div style="font-size:14px;font-weight:600;margin-bottom:2px">${p.name}</div>
-      <div style="font-size:12px;color:#888;margin-bottom:8px">Systém: sklad ${p.sklad} · automat ${p.automat}</div>
+      <div style="font-size:12px;color:#888;margin-bottom:8px">Aktuální stav skladu: ${p.sklad} ks</div>
       <div style="display:flex;gap:8px">
         <div style="flex:1"><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný sklad</label>
           <input type="number" id="inv-sklad-${p.id}" min="0" value="${p.sklad}" inputmode="numeric" style="text-align:center"></div>
-        <div style="flex:1"><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný automat</label>
-          <input type="number" id="inv-automat-${p.id}" min="0" value="${p.automat}" inputmode="numeric" style="text-align:center"></div>
+
       </div>
     </div>`).join('');
   document.getElementById('modal-inventura').classList.add('open');
