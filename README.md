@@ -1,8 +1,28 @@
 # 🏪 Sklad & Automat
 
 Jednoduchá webová aplikace pro evidenci zásob skladu a prodejního automatu.
+Funguje na všech zařízeních, data sdílená online přes Supabase.
 
-## Funkce
+---
+
+## Jak to funguje (přehled)
+
+```
+Telefon / Tablet / PC
+        ↓
+   index.html          ← aplikace (hostovaná na GitHub Pages)
+        ↓
+    Supabase           ← online databáze (zdarma), ukládá všechna data
+```
+
+- Appka je hostovaná na **GitHub Pages** (tento repozitář)
+- Data (produkty, zásoby, historie) jsou uložena v **Supabase** databázi
+- Funguje na všech zařízeních najednou — změna na jednom se projeví všude
+- Na iPhone přidej přes Safari → Sdílet → Přidat na plochu
+
+---
+
+## Funkce aplikace
 
 - **Příjem zboží** — naskladnění dodávky do skladu
 - **Přesun do automatu** — odečte ze skladu, přičte do automatu
@@ -11,26 +31,90 @@ Jednoduchá webová aplikace pro evidenci zásob skladu a prodejního automatu.
 - **Historie** — záznamy všech pohybů s časovými razítky
 - **Přidání produktu** — rozšíření seznamu o nové zboží
 
-## Technologie
+---
 
-- Čistý HTML + JavaScript, žádné závislosti
-- Data uložena v `localStorage` prohlížeče
-- Funguje offline, lze přidat na plochu mobilu (PWA)
+## Technické informace
 
-## Nasazení na GitHub Pages
+### GitHub Pages
+- Repozitář: `https://github.com/[tvůj-účet]/[název-repozitáře]`
+- Appka URL: `https://[tvůj-účet].github.io/[název-repozitáře]/sklad/`
+- Soubor aplikace: `sklad/index.html`
 
+### Supabase (databáze)
+- Dashboard: `https://supabase.com/dashboard`
+- Project URL: *(doplnit po vytvoření projektu)*
+- Tabulky v databázi:
+  - `products` — seznam produktů se zásobami
+  - `history` — záznamy všech pohybů
+
+> ⚠️ API klíč nikdy nedávej do veřejného repozitáře jako samostatný soubor.
+> Je součástí `index.html` jako anon/public klíč — to je bezpečné pro čtení/zápis
+> přes Row Level Security (RLS).
+
+---
+
+## Nasazení — postup
+
+### 1. GitHub Pages
 1. Nahraj soubory do repozitáře
 2. Jdi do **Settings → Pages**
-3. Zvol branch `main`, složku `/ (root)` nebo `/docs`
-4. Ulož — za chvíli bude appka dostupná na `https://tvoje-jmeno.github.io/nazev-repo/`
+3. Zvol branch `main`, složku `/ (root)`
+4. Ulož — appka běží na `https://tvůj-účet.github.io/název-repo/sklad/`
 
-## Struktura
+### 2. Supabase
+1. Vytvoř účet na [supabase.com](https://supabase.com)
+2. Vytvoř nový projekt (heslo si zapiš!)
+3. V **Settings → API** najdeš:
+   - `Project URL` — adresa databáze
+   - `anon public` klíč — pro přístup z appky
+4. Spusť SQL skript pro vytvoření tabulek (viz níže)
+5. Vlož URL a klíč do `index.html`
+
+### SQL pro vytvoření tabulek (spustit v Supabase → SQL Editor)
+```sql
+-- Produkty
+create table products (
+  id bigint primary key generated always as identity,
+  name text not null,
+  cat text not null default 'Ostatní',
+  sklad integer not null default 0,
+  automat integer not null default 0,
+  min integer not null default 5,
+  created_at timestamptz default now()
+);
+
+-- Historie pohybů
+create table history (
+  id bigint primary key generated always as identity,
+  product_id bigint references products(id),
+  product_name text not null,
+  type text not null,
+  qty integer,
+  note text,
+  diff_sklad integer,
+  diff_automat integer,
+  created_at timestamptz default now()
+);
+
+-- Přístup (Row Level Security)
+alter table products enable row level security;
+alter table history enable row level security;
+create policy "public access" on products for all using (true) with check (true);
+create policy "public access" on history for all using (true) with check (true);
+```
+
+---
+
+## Struktura repozitáře
 
 ```
 /
-└── index.html    # celá aplikace v jednom souboru
-└── README.md
+└── sklad/
+    ├── index.html    ← celá aplikace
+    └── README.md     ← tento soubor
 ```
+
+---
 
 ## Changelog
 
@@ -38,3 +122,7 @@ Jednoduchá webová aplikace pro evidenci zásob skladu a prodejního automatu.
 - První verze
 - 63 produktů přednastaveno
 - Příjem, přesun do automatu, inventura, historie, objednávky
+- Lokální úložiště (localStorage)
+
+### v1.1.0 *(připravuje se)*
+- Přechod na Supabase — sdílená data napříč zařízeními
