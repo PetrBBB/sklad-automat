@@ -131,3 +131,8 @@ create policy "public access" on history for all using (true) with check (true);
 - Filtrování produktů podle kategorie (chips nad seznamem)
 - Výběr kategorie při přidání produktu (dropdown místo textového pole)
 - Záložka Nastavení — správa kategorií (přidání, smazání)
+
+### v1.3.0
+- PIN ochrana při otevření appky (4 číslice)
+- PIN se pamatuje do zavření záložky (sessionStorage)
+- Odhlášení v záložce Nastavení
