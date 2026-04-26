@@ -375,7 +375,7 @@ function renderOrder(){
     low.map(p=>`<div class="alert-card">
       <div class="product-name">${p.name}</div>
       <div class="product-cat">${catBadge(p.cat)}</div>
-      <div class="alert-msg">Sklad: <strong>0 ks</strong> · V automatu: ${p.automat} ks</div>
+      <div class="alert-msg">Sklad je prázdný — je čas objednat.</div>
     </div>`).join('');
 }
 
