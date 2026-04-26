@@ -124,5 +124,10 @@ create policy "public access" on history for all using (true) with check (true);
 - Příjem, přesun do automatu, inventura, historie, objednávky
 - Lokální úložiště (localStorage)
 
-### v1.1.0 *(připravuje se)*
+### v1.1.0
 - Přechod na Supabase — sdílená data napříč zařízeními
+
+### v1.2.0
+- Filtrování produktů podle kategorie (chips nad seznamem)
+- Výběr kategorie při přidání produktu (dropdown místo textového pole)
+- Záložka Nastavení — správa kategorií (přidání, smazání)
