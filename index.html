@@ -1,515 +1,133 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Sklad">
-<title>Sklad & Automat</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#111;max-width:480px;margin:0 auto;min-height:100vh}
-.top-bar{display:flex;align-items:center;gap:8px;padding:12px 16px;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:0;z-index:10}
-.top-bar h1{font-size:17px;font-weight:600;flex:1}
-.tab-bar{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:49px;z-index:9}
-.tab{flex:1;padding:10px 4px;font-size:13px;text-align:center;cursor:pointer;color:#888;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
-.tab.active{color:#111;border-bottom-color:#111;font-weight:600}
-.content{padding:12px 16px;padding-bottom:40px}
-input[type=text],input[type=number]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #ddd;font-size:16px;background:#fafafa;color:#111;font-family:inherit;outline:none}
-input:focus{border-color:#888;background:#fff}
-.search-bar{margin-bottom:12px}
-.product-card{background:#fff;border:1px solid #e8e8e8;border-radius:14px;padding:12px;margin-bottom:8px}
-.product-name{font-size:14px;font-weight:600;color:#111;margin-bottom:2px;line-height:1.3}
-.product-cat{margin-bottom:10px}
-.stock-row{display:flex;gap:8px;margin-bottom:10px}
-.stock-box{flex:1;background:#f5f5f5;border-radius:10px;padding:8px;text-align:center}
-.stock-label{font-size:11px;color:#888;display:block;margin-bottom:2px}
-.stock-val{font-size:20px;font-weight:600;color:#111}
-.stock-val.low{color:#c0392b}
-.stock-val.zero{color:#bbb}
-.btn-row{display:flex;gap:8px}
-.btn{flex:1;padding:9px 6px;border-radius:10px;border:1px solid #ddd;font-size:13px;cursor:pointer;background:#fff;color:#111;font-weight:600;font-family:inherit}
-.btn:active{opacity:0.7}
-.btn.green{border-color:#27ae60;color:#27ae60;background:#f0faf4}
-.btn.blue{border-color:#2980b9;color:#2980b9;background:#f0f6fc}
-.btn.primary{background:#111;color:#fff;border-color:#111}
-.btn.gray{background:#f5f5f5;color:#555;border-color:#ddd}
-.section-title{font-size:12px;font-weight:600;color:#888;margin:16px 0 8px;text-transform:uppercase;letter-spacing:0.05em}
-.history-item{padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center}
-.history-item:last-child{border-bottom:none}
-.history-name{font-size:14px;color:#111;font-weight:500}
-.history-detail{font-size:12px;color:#888;margin-top:1px}
-.history-change{font-size:14px;font-weight:600;white-space:nowrap;margin-left:8px}
-.history-change.plus{color:#27ae60}
-.history-change.move{color:#2980b9}
-.history-change.inv{color:#8e44ad}
-.alert-card{background:#fdf0ef;border:1px solid #e8b4b0;border-radius:14px;padding:12px;margin-bottom:8px}
-.alert-card .product-name{color:#7b1a1a}
-.alert-card .alert-msg{font-size:12px;color:#a93226;margin-top:4px}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:flex-end;justify-content:center}
-.modal-overlay.open{display:flex}
-.modal{background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 40px;width:100%;max-height:85vh;overflow-y:auto}
-.modal h2{font-size:16px;font-weight:700;margin-bottom:4px;color:#111}
-.modal .modal-sub{font-size:13px;color:#888;margin-bottom:16px}
-.modal label{font-size:13px;color:#555;display:block;margin-bottom:4px;margin-top:14px;font-weight:500}
-.modal-btns{display:flex;gap:8px;margin-top:18px}
-.badge{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;font-weight:600}
-.badge.vilgain{background:#ede9fe;color:#4c1d95}
-.badge.napoje{background:#dbeafe;color:#1e3a8a}
-.badge.sladkosti{background:#fef3c7;color:#78350f}
-.badge.slane{background:#dcfce7;color:#14532d}
-.badge.drogerie{background:#fce7f3;color:#831843}
-.badge.ostatni{background:#f3f4f6;color:#374151}
-.empty-state{text-align:center;padding:48px 16px;color:#aaa;font-size:15px;line-height:1.6}
-.inv-card{background:#fff;border:1px solid #e8e8e8;border-radius:14px;padding:12px;margin-bottom:8px}
-.drag-handle{width:36px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 16px}
-.loading{text-align:center;padding:40px 16px;color:#aaa;font-size:15px}
-.sync-indicator{font-size:12px;color:#aaa;margin-left:4px}
-.sync-indicator.syncing{color:#f39c12}
-.sync-indicator.ok{color:#27ae60}
-.sync-indicator.err{color:#c0392b}
-</style>
-</head>
-<body>
+# 🏪 Sklad & Automat
 
-<div class="top-bar">
-  <h1>🏪 Sklad & Automat <span class="sync-indicator" id="sync-status"></span></h1>
-  <button class="btn" style="flex:none;padding:7px 13px;font-size:13px" onclick="openAddProduct()">+ Produkt</button>
-</div>
-<div class="tab-bar">
-  <button class="tab active" onclick="switchTab('sklad')">Sklad</button>
-  <button class="tab" onclick="switchTab('objednat')">Objednat</button>
-  <button class="tab" onclick="switchTab('inventura')">Inventura</button>
-  <button class="tab" onclick="switchTab('historie')">Historie</button>
-</div>
-<div class="content">
-  <div id="tab-sklad">
-    <input class="search-bar" type="text" placeholder="🔍 Hledat produkt..." oninput="renderProducts(this.value)" id="search">
-    <div id="product-list"><div class="loading">Načítám data...</div></div>
-  </div>
-  <div id="tab-objednat" style="display:none"><div id="order-list"></div></div>
-  <div id="tab-inventura" style="display:none"><div id="inventura-list"></div></div>
-  <div id="tab-historie" style="display:none"><div id="history-list"></div></div>
-</div>
+Jednoduchá webová aplikace pro evidenci zásob skladu a prodejního automatu.
+Funguje na všech zařízeních, data sdílená online přes Supabase.
 
-<!-- Modal: Příjem -->
-<div id="modal-prijem" class="modal-overlay">
-  <div class="modal">
-    <div class="drag-handle"></div>
-    <h2>Příjem do skladu</h2>
-    <p class="modal-sub" id="modal-prijem-sub"></p>
-    <label>Počet kusů</label>
-    <input type="number" id="prijemQty" min="1" value="1" inputmode="numeric">
-    <label>Minimální zásoba skladu (upozornění)</label>
-    <input type="number" id="prijemMin" min="0" inputmode="numeric" placeholder="např. 5">
-    <div class="modal-btns">
-      <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-prijem')">Zrušit</button>
-      <button class="btn primary" onclick="confirmPrijem()">✓ Potvrdit příjem</button>
-    </div>
-  </div>
-</div>
+---
 
-<!-- Modal: Přesun -->
-<div id="modal-presun" class="modal-overlay">
-  <div class="modal">
-    <div class="drag-handle"></div>
-    <h2>Naskladnit do automatu</h2>
-    <p class="modal-sub" id="modal-presun-sub"></p>
-    <label>Počet kusů</label>
-    <input type="number" id="presunQty" min="1" value="1" inputmode="numeric">
-    <div class="modal-btns">
-      <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-presun')">Zrušit</button>
-      <button class="btn primary" onclick="confirmPresun()">→ Přesunout</button>
-    </div>
-  </div>
-</div>
+## Jak to funguje (přehled)
 
-<!-- Modal: Nový produkt -->
-<div id="modal-addproduct" class="modal-overlay">
-  <div class="modal">
-    <div class="drag-handle"></div>
-    <h2>Nový produkt</h2>
-    <p class="modal-sub">Vyplň název a kategorii</p>
-    <label>Název produktu</label>
-    <input type="text" id="newName" placeholder="např. Coca Cola">
-    <label>Kategorie</label>
-    <input type="text" id="newCat" placeholder="Nápoje / Sladkosti / Slané / Drogerie / Vilgain">
-    <label>Minimální zásoba skladu</label>
-    <input type="number" id="newMin" min="0" value="5" inputmode="numeric">
-    <div class="modal-btns">
-      <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-addproduct')">Zrušit</button>
-      <button class="btn primary" onclick="confirmAddProduct()">✓ Přidat</button>
-    </div>
-  </div>
-</div>
+```
+Telefon / Tablet / PC
+        ↓
+   index.html          ← aplikace (hostovaná na GitHub Pages)
+        ↓
+    Supabase           ← online databáze (zdarma), ukládá všechna data
+```
 
-<!-- Modal: Inventura -->
-<div id="modal-inventura" class="modal-overlay">
-  <div class="modal">
-    <div class="drag-handle"></div>
-    <h2>Inventura</h2>
-    <p class="modal-sub">Zadej skutečné stavy podle fyzického počítání</p>
-    <div id="inv-form"></div>
-    <div class="modal-btns">
-      <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-inventura')">Zrušit</button>
-      <button class="btn primary" onclick="confirmInventura()">✓ Uložit inventuru</button>
-    </div>
-  </div>
-</div>
+- Appka je hostovaná na **GitHub Pages** (tento repozitář)
+- Data (produkty, zásoby, historie) jsou uložena v **Supabase** databázi
+- Funguje na všech zařízeních najednou — změna na jednom se projeví všude
+- Na iPhone přidej přes Safari → Sdílet → Přidat na plochu
 
-<script>
-const SUPABASE_URL = 'https://snoxqbeugghtrxhokjfw.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_66cPTPZRybZW6yzQ04688A_K3NSj-XY';
-const HEADERS = {
-  'Content-Type': 'application/json',
-  'apikey': SUPABASE_KEY,
-  'Authorization': 'Bearer ' + SUPABASE_KEY,
-  'Prefer': 'return=representation'
-};
+---
 
-let products = [];
-let activeProductId = null;
-let activeTab = 'sklad';
+## Funkce aplikace
 
-function setSync(state) {
-  const el = document.getElementById('sync-status');
-  if(state === 'syncing') { el.textContent = '↻'; el.className = 'sync-indicator syncing'; }
-  else if(state === 'ok') { el.textContent = '✓'; el.className = 'sync-indicator ok'; setTimeout(()=>{ el.textContent=''; }, 2000); }
-  else { el.textContent = '!'; el.className = 'sync-indicator err'; }
-}
+- **Příjem zboží** — naskladnění dodávky do skladu
+- **Přesun do automatu** — odečte ze skladu, přičte do automatu
+- **Objednat** — seznam produktů pod minimální zásobou
+- **Inventura** — fyzické přepočítání a oprava stavů
+- **Historie** — záznamy všech pohybů s časovými razítky
+- **Přidání produktu** — rozšíření seznamu o nové zboží
 
-async function api(method, table, body, query='') {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
-    method, headers: HEADERS,
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if(!res.ok) { const e = await res.text(); throw new Error(e); }
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+---
 
-async function loadProducts() {
-  setSync('syncing');
-  try {
-    products = await api('GET', 'products', null, '?order=name.asc');
-    setSync('ok');
-    renderProducts(document.getElementById('search').value);
-  } catch(e) {
-    setSync('err');
-    document.getElementById('product-list').innerHTML = '<div class="empty-state">Chyba připojení k databázi.<br>Zkontroluj internet a obnov stránku.</div>';
-  }
-}
+## Technické informace
 
-async function seedProducts() {
-  const defaults = [
-    {name:"Energy Cookie BIO (čokoláda s lískovými ořechy)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Energy gel (mango)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Nut Butter Cups BIO (arašídové máslo)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Flapjack (hruška/med)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Trouble Protein Bar (kokos s mléčnou čokoládou)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Double Trouble Protein Bar (pistácie)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Protein Milkshake (kokosový krém)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Protein Milkshake (kakao)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Electrolyte Drink (mandarinka s citronem)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Electrolyte Drink (šťavnaté mango)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Double Trouble Protein Bar (vanilka se slaným karamelem)",cat:"Vilgain",sklad:0,automat:0,min:5},
-    {name:"Pom-Bär Original",cat:"Slané",sklad:0,automat:0,min:5},
-    {name:"Pan Kombučák - Ostružina",cat:"Nápoje",sklad:0,automat:0,min:3},
-    {name:"Pan Kombučák Máta & Lemon Grass",cat:"Nápoje",sklad:0,automat:0,min:3},
-    {name:"Ovesná svačinka Fitneska s lískovými oříšky",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Ovocné pyré 100% jablko",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Náplasti",cat:"Drogerie",sklad:0,automat:0,min:3},
-    {name:"Kabanos Cheese Snack !t",cat:"Slané",sklad:0,automat:0,min:3},
-    {name:"Mini müsli tyčinky Meruňka",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Tampony Ria",cat:"Drogerie",sklad:0,automat:0,min:3},
-    {name:"Vlhčené ubrousky",cat:"Drogerie",sklad:0,automat:0,min:3},
-    {name:"Indulona Original",cat:"Drogerie",sklad:0,automat:0,min:3},
-    {name:"Mila",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Capri Sun Multivitamin",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Capri Sun Mystic Dragon",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Natura Jemně perlivá",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Natura Neperlivá",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Vincentka",cat:"Nápoje",sklad:0,automat:0,min:3},
-    {name:"Red Bull 0,33l",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Vitamin water",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Fuze Tea Jahoda Aloe vera",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Sprite",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Tonic Kinley Ginger Ale",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Coca Cola",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Coca Cola Zero",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Fanta",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Fanta Zero Jablko Liči",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Powerade",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Cappy Lemonade",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Cappy Jahoda mix",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Cappy Pomeranč",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Mošt Hruška jablko",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Mošt Jablko 100%",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Birell Active Pomelo grep",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Tiger Aloha",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Tiger",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Bon Pari",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Tyčinky kinder",cat:"Slané",sklad:0,automat:0,min:5},
-    {name:"Brumík",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Mysli na zdraví ořech",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Fruit Gummies jahoda",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Fruko Toma jahoda",cat:"Nápoje",sklad:0,automat:0,min:5},
-    {name:"Sušenka Attack",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Snickers",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Margot",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Corny",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"KitKat",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Kapesníčky",cat:"Drogerie",sklad:0,automat:0,min:3},
-    {name:"Kalhotky XS/S",cat:"Drogerie",sklad:0,automat:0,min:2},
-    {name:"Kalhotky M/L",cat:"Drogerie",sklad:0,automat:0,min:2},
-    {name:"Tyčinky slané",cat:"Slané",sklad:0,automat:0,min:5},
-    {name:"Tatranka",cat:"Sladkosti",sklad:0,automat:0,min:5},
-    {name:"Romerquelle Lemongrass",cat:"Nápoje",sklad:0,automat:0,min:5}
-  ];
-  await api('POST', 'products', defaults);
-  await loadProducts();
-}
+### GitHub Pages
+- Repozitář: `https://github.com/[tvůj-účet]/[název-repozitáře]`
+- Appka URL: `https://[tvůj-účet].github.io/[název-repozitáře]/sklad/`
+- Soubor aplikace: `sklad/index.html`
 
-async function init() {
-  await loadProducts();
-  if(products.length === 0) {
-    if(confirm('Databáze je prázdná. Načíst výchozích 63 produktů?')) {
-      await seedProducts();
-    }
-  }
-}
+### Supabase (databáze)
+- Dashboard: `https://supabase.com/dashboard`
+- Project URL: *(doplnit po vytvoření projektu)*
+- Tabulky v databázi:
+  - `products` — seznam produktů se zásobami
+  - `history` — záznamy všech pohybů
 
-function catBadge(cat){
-  const map={'Vilgain':'vilgain','Nápoje':'napoje','Sladkosti':'sladkosti','Slané':'slane','Drogerie':'drogerie'};
-  return `<span class="badge ${map[cat]||'ostatni'}">${cat}</span>`;
-}
+> ⚠️ API klíč nikdy nedávej do veřejného repozitáře jako samostatný soubor.
+> Je součástí `index.html` jako anon/public klíč — to je bezpečné pro čtení/zápis
+> přes Row Level Security (RLS).
 
-function switchTab(tab){
-  activeTab = tab;
-  const tabs = ['sklad','objednat','inventura','historie'];
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', tabs[i]===tab));
-  tabs.forEach(t=>{ document.getElementById('tab-'+t).style.display = t===tab?'block':'none'; });
-  if(tab==='sklad') renderProducts(document.getElementById('search').value);
-  else if(tab==='objednat') renderOrder();
-  else if(tab==='inventura') renderInventura();
-  else renderHistory();
-}
+---
 
-function renderProducts(q=''){
-  const q2 = q.toLowerCase();
-  const filtered = products.filter(p=>p.name.toLowerCase().includes(q2)||p.cat.toLowerCase().includes(q2));
-  const el = document.getElementById('product-list');
-  if(!filtered.length){el.innerHTML='<div class="empty-state">Žádný produkt nenalezen.</div>';return;}
-  el.innerHTML = filtered.map(p=>{
-    const total = p.sklad + p.automat;
-    const low = p.sklad <= p.min;
-    const skladClass = p.sklad===0?'zero':low?'low':'';
-    return `<div class="product-card">
-      <div class="product-name">${p.name}</div>
-      <div class="product-cat">${catBadge(p.cat)}</div>
-      <div class="stock-row">
-        <div class="stock-box"><span class="stock-label">Ve skladu</span><span class="stock-val ${skladClass}">${p.sklad}</span></div>
-        <div class="stock-box"><span class="stock-label">V automatu</span><span class="stock-val ${p.automat===0?'zero':''}">${p.automat}</span></div>
-        <div class="stock-box"><span class="stock-label">Celkem</span><span class="stock-val">${total}</span></div>
-      </div>
-      <div class="btn-row">
-        <button class="btn green" onclick="openPrijem(${p.id})">+ Příjem</button>
-        <button class="btn blue" onclick="openPresun(${p.id})">→ Automat</button>
-      </div>
-    </div>`;
-  }).join('');
-}
+## Nasazení — postup
 
-function renderOrder(){
-  const low = products.filter(p=>p.sklad<=p.min);
-  const el = document.getElementById('order-list');
-  if(!low.length){el.innerHTML='<div class="empty-state">Vše v pořádku ✓<br>Není co objednávat.</div>';return;}
-  el.innerHTML = `<div class="section-title">Je čas objednat — ${low.length} produktů</div>`+
-    low.map(p=>`<div class="alert-card">
-      <div class="product-name">${p.name}</div>
-      <div class="product-cat">${catBadge(p.cat)}</div>
-      <div class="alert-msg">Sklad: <strong>${p.sklad} ks</strong> · Minimum: ${p.min} ks</div>
-    </div>`).join('');
-}
+### 1. GitHub Pages
+1. Nahraj soubory do repozitáře
+2. Jdi do **Settings → Pages**
+3. Zvol branch `main`, složku `/ (root)`
+4. Ulož — appka běží na `https://tvůj-účet.github.io/název-repo/sklad/`
 
-function renderInventura(){
-  const el = document.getElementById('inventura-list');
-  el.innerHTML = `
-    <p style="font-size:14px;color:#555;margin-bottom:12px;line-height:1.5">
-      Projdi fyzicky sklad a automat. Zadej skutečné počty — systém opraví rozdíly a zaznamená je do historie.
-    </p>
-    <button class="btn primary" style="width:100%;margin-bottom:16px;padding:12px" onclick="openInventuraModal()">Spustit inventuru</button>
-    <div class="section-title">Aktuální stavy v systému</div>
-    ${products.map(p=>`
-      <div class="inv-card">
-        <div class="product-name">${p.name}</div>
-        <div class="product-cat">${catBadge(p.cat)}</div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <div class="stock-box" style="flex:1;background:#f5f5f5;border-radius:10px;padding:8px;text-align:center">
-            <span class="stock-label">Sklad</span>
-            <span class="stock-val ${p.sklad===0?'zero':''}">${p.sklad}</span>
-          </div>
-          <div class="stock-box" style="flex:1;background:#f5f5f5;border-radius:10px;padding:8px;text-align:center">
-            <span class="stock-label">Automat</span>
-            <span class="stock-val ${p.automat===0?'zero':''}">${p.automat}</span>
-          </div>
-        </div>
-      </div>`).join('')}`;
-}
+### 2. Supabase
+1. Vytvoř účet na [supabase.com](https://supabase.com)
+2. Vytvoř nový projekt (heslo si zapiš!)
+3. V **Settings → API** najdeš:
+   - `Project URL` — adresa databáze
+   - `anon public` klíč — pro přístup z appky
+4. Spusť SQL skript pro vytvoření tabulek (viz níže)
+5. Vlož URL a klíč do `index.html`
 
-function openInventuraModal(){
-  document.getElementById('inv-form').innerHTML = products.map(p=>`
-    <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #f0f0f0">
-      <div style="font-size:14px;font-weight:600;margin-bottom:2px">${p.name}</div>
-      <div style="font-size:12px;color:#888;margin-bottom:8px">Systém: sklad ${p.sklad} · automat ${p.automat}</div>
-      <div style="display:flex;gap:8px">
-        <div style="flex:1"><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný sklad</label>
-          <input type="number" id="inv-sklad-${p.id}" min="0" value="${p.sklad}" inputmode="numeric" style="text-align:center"></div>
-        <div style="flex:1"><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Skutečný automat</label>
-          <input type="number" id="inv-automat-${p.id}" min="0" value="${p.automat}" inputmode="numeric" style="text-align:center"></div>
-      </div>
-    </div>`).join('');
-  document.getElementById('modal-inventura').classList.add('open');
-}
+### SQL pro vytvoření tabulek (spustit v Supabase → SQL Editor)
+```sql
+-- Produkty
+create table products (
+  id bigint primary key generated always as identity,
+  name text not null,
+  cat text not null default 'Ostatní',
+  sklad integer not null default 0,
+  automat integer not null default 0,
+  min integer not null default 5,
+  created_at timestamptz default now()
+);
 
-async function confirmInventura(){
-  setSync('syncing');
-  try {
-    const ts = new Date().toISOString();
-    const historyRows = [];
-    const updates = [];
-    products.forEach(p=>{
-      const ns = parseInt(document.getElementById('inv-sklad-'+p.id)?.value);
-      const na = parseInt(document.getElementById('inv-automat-'+p.id)?.value);
-      const ds = isNaN(ns)?0:ns-p.sklad;
-      const da = isNaN(na)?0:na-p.automat;
-      if(ds!==0||da!==0){
-        const parts=[];
-        if(ds!==0) parts.push(`sklad ${ds>0?'+':''}${ds}`);
-        if(da!==0) parts.push(`automat ${da>0?'+':''}${da}`);
-        updates.push({id:p.id,sklad:isNaN(ns)?p.sklad:ns,automat:isNaN(na)?p.automat:na});
-        historyRows.push({product_id:p.id,product_name:p.name,type:'inventura',note:parts.join(', '),diff_sklad:ds,diff_automat:da});
-      }
-    });
-    for(const u of updates){
-      await api('PATCH','products',{sklad:u.sklad,automat:u.automat},`?id=eq.${u.id}`);
-    }
-    if(historyRows.length) await api('POST','history',historyRows);
-    setSync('ok');
-    closeModal('modal-inventura');
-    alert(`Inventura uložena. Opraveno ${updates.length} produktů.`);
-    await loadProducts();
-    renderInventura();
-  } catch(e){ setSync('err'); alert('Chyba při ukládání: '+e.message); }
-}
+-- Historie pohybů
+create table history (
+  id bigint primary key generated always as identity,
+  product_id bigint references products(id),
+  product_name text not null,
+  type text not null,
+  qty integer,
+  note text,
+  diff_sklad integer,
+  diff_automat integer,
+  created_at timestamptz default now()
+);
 
-function openPrijem(id){
-  activeProductId = id;
-  const p = products.find(x=>x.id===id);
-  document.getElementById('modal-prijem-sub').textContent = p.name;
-  document.getElementById('prijemQty').value = 1;
-  document.getElementById('prijemMin').value = p.min||'';
-  document.getElementById('modal-prijem').classList.add('open');
-  setTimeout(()=>document.getElementById('prijemQty').focus(),300);
-}
+-- Přístup (Row Level Security)
+alter table products enable row level security;
+alter table history enable row level security;
+create policy "public access" on products for all using (true) with check (true);
+create policy "public access" on history for all using (true) with check (true);
+```
 
-async function confirmPrijem(){
-  const qty = parseInt(document.getElementById('prijemQty').value)||0;
-  const min = parseInt(document.getElementById('prijemMin').value);
-  if(qty<1){alert('Zadej alespoň 1 kus.');return;}
-  const p = products.find(x=>x.id===activeProductId);
-  setSync('syncing');
-  try {
-    const newSklad = p.sklad+qty;
-    const newMin = isNaN(min)?p.min:min;
-    await api('PATCH','products',{sklad:newSklad,min:newMin},`?id=eq.${p.id}`);
-    await api('POST','history',[{product_id:p.id,product_name:p.name,type:'prijem',qty}]);
-    setSync('ok');
-    closeModal('modal-prijem');
-    await loadProducts();
-  } catch(e){setSync('err');alert('Chyba: '+e.message);}
-}
+---
 
-function openPresun(id){
-  activeProductId = id;
-  const p = products.find(x=>x.id===id);
-  document.getElementById('modal-presun-sub').textContent = `${p.name} · ve skladu: ${p.sklad} ks`;
-  document.getElementById('presunQty').value = 1;
-  document.getElementById('modal-presun').classList.add('open');
-  setTimeout(()=>document.getElementById('presunQty').focus(),300);
-}
+## Struktura repozitáře
 
-async function confirmPresun(){
-  const qty = parseInt(document.getElementById('presunQty').value)||0;
-  if(qty<1){alert('Zadej alespoň 1 kus.');return;}
-  const p = products.find(x=>x.id===activeProductId);
-  if(qty>p.sklad){alert(`Nedostatek zásob ve skladu. Dostupné: ${p.sklad} ks.`);return;}
-  setSync('syncing');
-  try {
-    await api('PATCH','products',{sklad:p.sklad-qty,automat:p.automat+qty},`?id=eq.${p.id}`);
-    await api('POST','history',[{product_id:p.id,product_name:p.name,type:'presun',qty}]);
-    setSync('ok');
-    closeModal('modal-presun');
-    await loadProducts();
-  } catch(e){setSync('err');alert('Chyba: '+e.message);}
-}
+```
+/
+└── sklad/
+    ├── index.html    ← celá aplikace
+    └── README.md     ← tento soubor
+```
 
-function openAddProduct(){
-  document.getElementById('newName').value='';
-  document.getElementById('newCat').value='';
-  document.getElementById('newMin').value=5;
-  document.getElementById('modal-addproduct').classList.add('open');
-}
+---
 
-async function confirmAddProduct(){
-  const name = document.getElementById('newName').value.trim();
-  const cat = document.getElementById('newCat').value.trim()||'Ostatní';
-  const min = parseInt(document.getElementById('newMin').value)||5;
-  if(!name){alert('Zadej název produktu.');return;}
-  setSync('syncing');
-  try {
-    await api('POST','products',[{name,cat,sklad:0,automat:0,min}]);
-    setSync('ok');
-    closeModal('modal-addproduct');
-    await loadProducts();
-  } catch(e){setSync('err');alert('Chyba: '+e.message);}
-}
+## Changelog
 
-async function renderHistory(){
-  const el = document.getElementById('history-list');
-  el.innerHTML='<div class="loading">Načítám historii...</div>';
-  try {
-    const history = await api('GET','history',null,'?order=created_at.desc&limit=100');
-    if(!history.length){el.innerHTML='<div class="empty-state">Zatím žádné pohyby.</div>';return;}
-    let html='', lastDate='';
-    history.forEach(h=>{
-      const d = new Date(h.created_at);
-      const dateStr = d.toLocaleDateString('cs-CZ',{weekday:'short',day:'numeric',month:'long'});
-      if(dateStr!==lastDate){html+=`<div class="section-title">${dateStr}</div>`;lastDate=dateStr;}
-      const timeStr = d.toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-      let cls='', txt='';
-      if(h.type==='prijem'){cls='plus';txt=`+${h.qty} sklad`;}
-      else if(h.type==='presun'){cls='move';txt=`→ ${h.qty} automat`;}
-      else if(h.type==='inventura'){cls='inv';txt=`inv: ${h.note}`;}
-      html+=`<div class="history-item">
-        <div style="flex:1;min-width:0">
-          <div class="history-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.product_name}</div>
-          <div class="history-detail">${timeStr}</div>
-        </div>
-        <div class="history-change ${cls}">${txt}</div>
-      </div>`;
-    });
-    el.innerHTML=html;
-  } catch(e){el.innerHTML='<div class="empty-state">Chyba načítání historie.</div>';}
-}
+### v1.0.0
+- První verze
+- 63 produktů přednastaveno
+- Příjem, přesun do automatu, inventura, historie, objednávky
+- Lokální úložiště (localStorage)
 
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-document.querySelectorAll('.modal-overlay').forEach(m=>{
-  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); });
-});
+### v1.1.0
+- Přechod na Supabase — sdílená data napříč zařízeními
 
-init();
-</script>
-</body>
-</html>
+### v1.2.0
+- Filtrování produktů podle kategorie (chips nad seznamem)
+- Výběr kategorie při přidání produktu (dropdown místo textového pole)
+- Záložka Nastavení — správa kategorií (přidání, smazání)
