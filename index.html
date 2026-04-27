@@ -137,6 +137,7 @@ input:focus{border-color:#888;background:#fff}
     <button class="tab" onclick="switchTab('objednat')">Objednat</button>
     <button class="tab" onclick="switchTab('inventura')">Inventura</button>
     <button class="tab" onclick="switchTab('historie')">Historie</button>
+    <button class="tab" onclick="switchTab('expirace')">Expirace</button>
     <button class="tab" onclick="switchTab('nastaveni')">Nastavení</button>
   </div>
   <div class="content">
@@ -155,6 +156,7 @@ input:focus{border-color:#888;background:#fff}
     <div id="tab-objednat" style="display:none"><div id="order-list"></div></div>
     <div id="tab-inventura" style="display:none"><div id="inventura-list"></div></div>
     <div id="tab-historie" style="display:none"><div id="history-list"></div></div>
+    <div id="tab-expirace" style="display:none"><div id="expirace-list"></div></div>
     <div id="tab-nastaveni" style="display:none"><div id="settings-content"></div></div>
   </div>
 </div>
@@ -204,6 +206,23 @@ input:focus{border-color:#888;background:#fff}
     <div class="modal-btns">
       <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-addproduct')">Zrušit</button>
       <button class="btn primary" onclick="confirmAddProduct()">✓ Přidat</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Přidat dávku -->
+<div id="modal-davka" class="modal-overlay">
+  <div class="modal">
+    <div class="drag-handle"></div>
+    <h2>Přidat dávku</h2>
+    <p class="modal-sub" id="modal-davka-sub"></p>
+    <label>Počet kusů</label>
+    <input type="number" id="davkaQty" min="1" value="" inputmode="numeric" placeholder="0" onfocus="this.value=''">
+    <label>Datum expirace</label>
+    <input type="month" id="davkaExpiry" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #ddd;font-size:16px;background:#fafafa;color:#111;font-family:inherit;outline:none">
+    <div class="modal-btns">
+      <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-davka')">Zrušit</button>
+      <button class="btn primary" onclick="confirmDavka()">✓ Přidat dávku</button>
     </div>
   </div>
 </div>
@@ -378,6 +397,7 @@ function renderProducts(){
       <div class="btn-row">
         <button class="btn green" onclick="openPrijem(${p.id})">+ Příjem</button>
         <button class="btn blue" onclick="openPresun(${p.id})">→ Automat</button>
+        <button class="btn" style="flex:none;padding:9px 10px;font-size:12px;color:#8e44ad;border-color:#c39bd3" onclick="openDavka(${p.id})">📅 Dávka</button>
       </div>
     </div>`;
   }).join('');
@@ -673,14 +693,128 @@ async function renderHistory(){
 
 function switchTab(tab){
   activeTab=tab;
-  const tabs=['sklad','objednat','inventura','historie','nastaveni'];
+  const tabs=['sklad','objednat','inventura','historie','expirace','nastaveni'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',tabs[i]===tab));
   tabs.forEach(t=>{document.getElementById('tab-'+t).style.display=t===tab?'block':'none';});
   if(tab==='sklad') renderProducts();
   else if(tab==='objednat') renderOrder();
   else if(tab==='inventura') renderInventura();
   else if(tab==='historie') renderHistory();
+  else if(tab==='expirace') renderExpirace();
   else if(tab==='nastaveni') renderSettings();
+}
+
+function openDavka(id){
+  activeProductId=id;
+  const p=products.find(x=>x.id===id);
+  document.getElementById('modal-davka-sub').textContent=p.name;
+  document.getElementById('davkaQty').value='';
+  // Set default expiry to next month
+  const d=new Date();
+  d.setMonth(d.getMonth()+1);
+  document.getElementById('davkaExpiry').value=d.toISOString().slice(0,7);
+  document.getElementById('modal-davka').classList.add('open');
+  setTimeout(()=>document.getElementById('davkaQty').focus(),300);
+}
+
+async function confirmDavka(){
+  const qty=parseInt(document.getElementById('davkaQty').value)||0;
+  const expiry=document.getElementById('davkaExpiry').value;
+  if(qty<1){alert('Zadej alespoň 1 kus.');return;}
+  if(!expiry){alert('Zadej datum expirace.');return;}
+  const p=products.find(x=>x.id===activeProductId);
+  setSync('syncing');
+  try{
+    // Add batch
+    await api('POST','batches',[{product_id:p.id,product_name:p.name,qty,expiry_date:expiry+'-01'}]);
+    setSync('ok');
+    closeModal('modal-davka');
+    if(activeTab==='expirace') renderExpirace();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
+}
+
+async function deleteDavka(id){
+  if(!confirm('Smazat tuto dávku?')) return;
+  setSync('syncing');
+  try{
+    await api('DELETE','batches',null,`?id=eq.${id}`);
+    setSync('ok');
+    renderExpirace();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
+}
+
+async function renderExpirace(){
+  const el=document.getElementById('expirace-list');
+  el.innerHTML='<div class="loading">Načítám dávky...</div>';
+  try{
+    const batches=await api('GET','batches',null,'?order=expiry_date.asc');
+    if(!batches.length){
+      el.innerHTML=`<div class="empty-state">Žádné dávky.<br>Přidej dávky u produktů přes tlačítko + Dávka.</div>
+      <button class="btn primary" style="width:100%;margin-top:16px;padding:12px" onclick="openDavkaVyber()">+ Přidat dávku</button>`;
+      return;
+    }
+    const now=new Date();
+    const d30=new Date(); d30.setDate(d30.getDate()+30);
+    const d60=new Date(); d60.setDate(d60.getDate()+60);
+
+    let expiredHTML='', soon30HTML='', soon60HTML='', okHTML='';
+
+    batches.forEach(b=>{
+      const exp=new Date(b.expiry_date);
+      const monthStr=exp.toLocaleDateString('cs-CZ',{month:'long',year:'numeric'});
+      const diffDays=Math.ceil((exp-now)/(1000*60*60*24));
+      let color='#27ae60', bg='#f0faf4', border='#b7dfca', label='';
+      if(exp<now){color='#7b1a1a';bg='#fdf0ef';border='#e8b4b0';label='EXPIROVÁNO';}
+      else if(exp<=d30){color='#c0392b';bg='#fdf0ef';border='#e8b4b0';label=`za ${diffDays} dní`;}
+      else if(exp<=d60){color='#e67e22';bg='#fef9f0';border='#f5d5a0';label=`za ${diffDays} dní`;}
+
+      const card=`<div style="background:${bg};border:1px solid ${border};border-radius:14px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:2px">${b.product_name}</div>
+          <div style="font-size:13px;color:${color};font-weight:500">${monthStr}${label?' · '+label:''}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">${b.qty} ks</div>
+        </div>
+        <button class="btn" style="flex:none;padding:6px 10px;font-size:12px;color:#aaa;border-color:#ddd" onclick="deleteDavka(${b.id})">✕</button>
+      </div>`;
+
+      if(exp<now) expiredHTML+=card;
+      else if(exp<=d30) soon30HTML+=card;
+      else if(exp<=d60) soon60HTML+=card;
+      else okHTML+=card;
+    });
+
+    let html='<button class="btn primary" style="width:100%;margin-bottom:16px;padding:12px" onclick="openDavkaVyber()">+ Přidat dávku</button>';
+    if(expiredHTML) html+=`<div class="section-title" style="color:#c0392b">Expirováno</div>${expiredHTML}`;
+    if(soon30HTML) html+=`<div class="section-title" style="color:#c0392b">Expiruje do 30 dní</div>${soon30HTML}`;
+    if(soon60HTML) html+=`<div class="section-title" style="color:#e67e22">Expiruje do 60 dní</div>${soon60HTML}`;
+    if(okHTML) html+=`<div class="section-title">V pořádku</div>${okHTML}`;
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty-state">Chyba načítání dávek.</div>';}
+}
+
+function openDavkaVyber(){
+  // Show product picker - reuse existing products list in a simple select modal
+  const sel=document.createElement('div');
+  sel.id='modal-davka-vyber';
+  sel.className='modal-overlay open';
+  sel.innerHTML=`<div class="modal">
+    <div class="drag-handle"></div>
+    <h2>Vybrat produkt</h2>
+    <p class="modal-sub">Pro který produkt přidáváš dávku?</p>
+    <select class="cat-select" id="davka-product-sel" style="margin-top:8px">
+      ${products.filter(p=>p.order_status!=='vyrazeno').map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+    </select>
+    <div class="modal-btns">
+      <button class="btn gray" style="flex:none;padding:10px 18px" onclick="document.getElementById('modal-davka-vyber').remove()">Zrušit</button>
+      <button class="btn primary" onclick="
+        const id=parseInt(document.getElementById('davka-product-sel').value);
+        document.getElementById('modal-davka-vyber').remove();
+        openDavka(id);
+      ">Pokračovat</button>
+    </div>
+  </div>`;
+  sel.addEventListener('click',e=>{if(e.target===sel) sel.remove();});
+  document.body.appendChild(sel);
 }
 
 function closeModal(id){document.getElementById(id).classList.remove('open');}
