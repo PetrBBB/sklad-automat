@@ -397,7 +397,6 @@ function renderProducts(){
       <div class="btn-row">
         <button class="btn green" onclick="openPrijem(${p.id})">+ Příjem</button>
         <button class="btn blue" onclick="openPresun(${p.id})">→ Automat</button>
-        <button class="btn" style="flex:none;padding:9px 10px;font-size:12px;color:#8e44ad;border-color:#c39bd3" onclick="openDavka(${p.id})">📅 Dávka</button>
       </div>
     </div>`;
   }).join('');
@@ -609,6 +608,7 @@ function openPrijem(id){
   const p=products.find(x=>x.id===id);
   document.getElementById('modal-prijem-sub').textContent=p.name;
   document.getElementById('prijemQty').value='';
+  document.getElementById('prijemExpiry').value='';
   document.getElementById('modal-prijem').classList.add('open');
   setTimeout(()=>document.getElementById('prijemQty').focus(),300);
 }
@@ -749,7 +749,7 @@ async function renderExpirace(){
   try{
     const batches=await api('GET','batches',null,'?order=expiry_date.asc');
     if(!batches.length){
-      el.innerHTML=`<div class="empty-state">Žádné dávky.<br>Přidej dávky u produktů přes tlačítko + Dávka.</div>
+      el.innerHTML=`<div class="empty-state">Žádné dávky.<br>Přidej dávky při příjmu zboží nebo přes tlačítko níže.</div>
       <button class="btn primary" style="width:100%;margin-top:16px;padding:12px" onclick="openDavkaVyber()">+ Přidat dávku</button>`;
       return;
     }
