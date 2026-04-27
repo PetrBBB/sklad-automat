@@ -142,6 +142,13 @@ create policy "public access" on history for all using (true) with check (true);
 - Záložka Objednat: stavy Neobjednáno / Objednáno
 - Příjem zboží automaticky resetuje stav objednávky
 
+### v1.6.0
+- Sledování expirace — dávky s datem spotřeby
+- Nová záložka Expirace — přehled dávek dle blízkosti expirace
+- Barevné označení: červená (expirováno/30 dní), oranžová (60 dní), zelená (ok)
+- Přidání dávky ze záložky Expirace i přímo z karty produktu
+- Smazání dávky křížkem
+
 ### v1.5.0
 - Pole počtu kusů je prázdné při otevření (není třeba mazat 1)
 - Vyřazení produktu — skryje ho z celé aplikace
