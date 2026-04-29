@@ -142,6 +142,11 @@ create policy "public access" on history for all using (true) with check (true);
 - Záložka Objednat: stavy Neobjednáno / Objednáno
 - Příjem zboží automaticky resetuje stav objednávky
 
+### v1.5.0
+- Pole počtu kusů je prázdné při otevření (není třeba mazat 1)
+- Vyřazení produktu — skryje ho z celé aplikace
+- Vyřazené produkty lze obnovit v záložce Nastavení
+
 ### v1.6.0
 - Sledování expirace — dávky s datem spotřeby
 - Nová záložka Expirace — přehled dávek dle blízkosti expirace
@@ -149,7 +154,6 @@ create policy "public access" on history for all using (true) with check (true);
 - Přidání dávky ze záložky Expirace i přímo z karty produktu
 - Smazání dávky křížkem
 
-### v1.5.0
-- Pole počtu kusů je prázdné při otevření (není třeba mazat 1)
-- Vyřazení produktu — skryje ho z celé aplikace
-- Vyřazené produkty lze obnovit v záložce Nastavení
+### v1.7.0
+- Kategorie přesunuty do Supabase — sdílené napříč zařízeními
+- Přidání a mazání kategorií se projeví na všech zařízeních okamžitě
