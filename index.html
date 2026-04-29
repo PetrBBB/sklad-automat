@@ -263,7 +263,6 @@ const CAT_COLORS = {
 };
 const DEFAULT_CAT_COLOR = {bg:'#f3f4f6',color:'#374151'};
 const DEFAULT_CATS = ['Vilgain','Nápoje','Sladkosti','Slané','Drogerie'];
-const CATS_KEY = 'sklad_categories';
 
 let products = [];
 let activeProductId = null;
@@ -329,11 +328,17 @@ function setSync(state){
 }
 
 // --- Categories ---
-function getCategories(){
-  const raw=localStorage.getItem(CATS_KEY);
-  return raw?JSON.parse(raw):[...DEFAULT_CATS];
+let categoriesCache = [];
+
+async function loadCategories(){
+  try{
+    categoriesCache = await api('GET','categories',null,'?order=name.asc');
+    categoriesCache = categoriesCache.map(c=>c.name);
+  }catch(e){
+    categoriesCache = [...DEFAULT_CATS];
+  }
 }
-function saveCategories(cats){localStorage.setItem(CATS_KEY,JSON.stringify(cats));}
+function getCategories(){ return categoriesCache; }
 function catBadge(cat){
   const c=CAT_COLORS[cat]||DEFAULT_CAT_COLOR;
   return `<span class="badge" style="background:${c.bg};color:${c.color}">${cat}</span>`;
@@ -541,27 +546,35 @@ function logout(){
   document.getElementById('pin-error').textContent='';
 }
 
-function addCategory(){
+async function addCategory(){
   const input=document.getElementById('newCatName');
   const name=input.value.trim();
   if(!name) return;
-  const cats=getCategories();
-  if(cats.includes(name)){alert('Kategorie již existuje.');return;}
-  cats.push(name);
-  saveCategories(cats);
-  input.value='';
-  renderSettings();
-  renderFilterBar();
+  if(categoriesCache.includes(name)){alert('Kategorie již existuje.');return;}
+  setSync('syncing');
+  try{
+    await api('POST','categories',[{name}]);
+    setSync('ok');
+    input.value='';
+    await loadCategories();
+    renderSettings();
+    renderFilterBar();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
-function deleteCategory(cat){
+async function deleteCategory(cat){
   const counts={};
   products.forEach(p=>{counts[p.cat]=(counts[p.cat]||0)+1;});
   if(counts[cat]>0){alert(`Kategorii "${cat}" nelze smazat — obsahuje ${counts[cat]} produktů.`);return;}
   if(!confirm(`Smazat kategorii "${cat}"?`)) return;
-  saveCategories(getCategories().filter(c=>c!==cat));
-  renderSettings();
-  renderFilterBar();
+  setSync('syncing');
+  try{
+    await api('DELETE','categories',null,`?name=eq.${encodeURIComponent(cat)}`);
+    setSync('ok');
+    await loadCategories();
+    renderSettings();
+    renderFilterBar();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function openInventuraModal(){
@@ -895,7 +908,8 @@ async function seedProducts(){
 }
 
 async function init(){
-  await loadProducts();
+  await Promise.all([loadProducts(), loadCategories()]);
+  renderFilterBar();
   if(products.length===0){
     if(confirm('Databáze je prázdná. Načíst výchozích 63 produktů?')) await seedProducts();
   }
