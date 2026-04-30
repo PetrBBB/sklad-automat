@@ -162,3 +162,9 @@ create policy "public access" on history for all using (true) with check (true);
 - Odstraněno pole minimální zásoba z formuláře nového produktu
 - Dávky s expirací zobrazeny přímo na kartě produktu
 - Přesun do automatu používá FIFO — odečítá od nejstarší dávky automaticky
+
+### v1.9.0
+- Vrácení pohybu z historie (posledních 10 pohybů)
+- Funguje pro příjem i přesun do automatu
+- Vrácení příjmu odebere kusy ze skladu a smaže dávku
+- Vrácení přesunu vrátí kusy do skladu (expirace nutno doplnit ručně)
