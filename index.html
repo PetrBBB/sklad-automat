@@ -740,7 +740,7 @@ async function renderHistory(){
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="history-change ${cls}">${txt}</div>
-          ${canUndo?`<button class="btn" style="flex:none;padding:5px 10px;font-size:12px;color:#c0392b;border-color:#e8b4b0" onclick="undoHistory(${h.id},'${h.type}',${h.product_id},${h.qty},'${h.product_name}')">Vrátit</button>`:''}
+          ${canUndo?`<button class="btn" style="flex:none;padding:5px 10px;font-size:12px;color:#c0392b;border-color:#e8b4b0" onclick="undoHistory(${h.id},'${h.type}',${h.product_id},${h.qty},'${h.product_name}','${h.created_at}')">Vrátit</button>`:''}
         </div>
       </div>`;
     });
@@ -769,41 +769,54 @@ async function renderHistory(){
   }catch(e){el.innerHTML='<div class="empty-state">Chyba načítání historie.</div>';}
 }
 
-async function undoHistory(historyId, type, productId, qty, productName){
-  if(!confirm(`Vrátit "${productName}" — ${type==='prijem'?`odebrat ${qty} ks ze skladu`:`vrátit ${qty} ks ze automatu do skladu`}?`)) return;
+async function undoHistory(historyId, type, productId, qty, productName, createdAt){
+  if(!confirm(`Vrátit "${productName}" — ${type==='prijem'?`odebrat ${qty} ks ze skladu`:`vrátit ${qty} ks z automatu do skladu`}?`)) return;
   setSync('syncing');
   try{
+    // Always fetch fresh product state
     const prods = await api('GET','products',null,`?id=eq.${productId}`);
     if(!prods||!prods.length) throw new Error('Produkt nenalezen');
     const p = prods[0];
+
     if(type==='prijem'){
-      // Undo prijem: subtract from sklad, delete newest batch for this product matching qty
       const newSklad = p.sklad - qty;
-      if(newSklad < 0){ alert('Nelze vrátit — sklad by byl záporný.'); setSync('ok'); return; }
+      if(newSklad < 0){ alert(`Nelze vrátit — sklad by byl záporný (aktuálně ${p.sklad} ks).`); setSync('ok'); return; }
+      // Find batch closest in time to this history record
+      const allBatches = await api('GET','batches',null,`?product_id=eq.${productId}&order=created_at.desc`);
+      let batchToRemove = null;
+      if(allBatches&&allBatches.length){
+        // Find batch with same qty created around same time (within 60s)
+        const histTs = new Date(createdAt).getTime();
+        batchToRemove = allBatches.find(b=>
+          b.qty===qty && Math.abs(new Date(b.created_at).getTime()-histTs) < 60000
+        );
+        // Fallback: newest batch with matching qty
+        if(!batchToRemove) batchToRemove = allBatches.find(b=>b.qty===qty);
+        // Fallback: just newest batch
+        if(!batchToRemove) batchToRemove = allBatches[0];
+      }
+      // Update sklad first
       await api('PATCH','products',{sklad:newSklad},`?id=eq.${productId}`);
-      // Try to remove matching batch - get newest batch for this product
-      const batches = await api('GET','batches',null,`?product_id=eq.${productId}&order=created_at.desc&limit=1`);
-      if(batches&&batches.length){
-        const b=batches[0];
-        if(b.qty<=qty){
-          await api('DELETE','batches',null,`?id=eq.${b.id}`);
+      // Remove batch
+      if(batchToRemove){
+        if(batchToRemove.qty<=qty){
+          await api('DELETE','batches',null,`?id=eq.${batchToRemove.id}`);
         } else {
-          await api('PATCH','batches',{qty:b.qty-qty},`?id=eq.${b.id}`);
+          await api('PATCH','batches',{qty:batchToRemove.qty-qty},`?id=eq.${batchToRemove.id}`);
         }
       }
     } else if(type==='presun'){
-      // Undo presun: add back to sklad, subtract from automat
       const newAutomat = p.automat - qty;
-      if(newAutomat < 0){ alert('Nelze vrátit — automat by byl záporný.'); setSync('ok'); return; }
+      if(newAutomat < 0){ alert(`Nelze vrátit — automat by byl záporný.`); setSync('ok'); return; }
       await api('PATCH','products',{sklad:p.sklad+qty,automat:newAutomat},`?id=eq.${productId}`);
     }
-    // Delete history record
+
     await api('DELETE','history',null,`?id=eq.${historyId}`);
     setSync('ok');
     await Promise.all([loadProducts(),loadBatchesForProducts()]);
     renderProducts();
     renderHistory();
-  }catch(e){setSync('err');alert('Chyba: '+e.message);}
+  }catch(e){setSync('err');alert('Chyba při vracení: '+e.message);}
 }
 
 function switchTab(tab){
