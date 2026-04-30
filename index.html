@@ -352,8 +352,6 @@ async function loadProducts(){
   try{
     products=await api('GET','products',null,'?order=name.asc');
     setSync('ok');
-    renderFilterBar();
-    renderProducts();
   }catch(e){
     setSync('err');
     document.getElementById('product-list').innerHTML='<div class="empty-state">Chyba připojení k databázi.<br>Zkontroluj internet a obnov stránku.</div>';
@@ -657,7 +655,7 @@ async function confirmPrijem(){
   try{
     await api('PATCH','products',{sklad:p.sklad+qty,order_status:'none'},`?id=eq.${p.id}`);
     await api('POST','history',[{product_id:p.id,product_name:p.name,type:'prijem',qty}]);
-    setSync('ok');closeModal('modal-prijem');await Promise.all([loadProducts(),loadBatchesForProducts()]);
+    setSync('ok');closeModal('modal-prijem');await Promise.all([loadProducts(),loadBatchesForProducts()]);renderProducts();
   }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
@@ -945,6 +943,7 @@ async function seedProducts(){
 async function init(){
   await Promise.all([loadProducts(), loadCategories(), loadBatchesForProducts()]);
   renderFilterBar();
+  renderProducts();
   if(products.length===0){
     if(confirm('Databáze je prázdná. Načíst výchozích 63 produktů?')) await seedProducts();
   }
