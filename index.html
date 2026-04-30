@@ -649,12 +649,16 @@ function openPrijem(id){
 }
 async function confirmPrijem(){
   const qty=parseInt(document.getElementById('prijemQty').value)||0;
+  const expiry=document.getElementById('prijemExpiry').value;
   if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p=products.find(x=>x.id===activeProductId);
   setSync('syncing');
   try{
     await api('PATCH','products',{sklad:p.sklad+qty,order_status:'none'},`?id=eq.${p.id}`);
     await api('POST','history',[{product_id:p.id,product_name:p.name,type:'prijem',qty}]);
+    if(expiry){
+      await api('POST','batches',[{product_id:p.id,product_name:p.name,qty,expiry_date:expiry}]);
+    }
     setSync('ok');closeModal('modal-prijem');await Promise.all([loadProducts(),loadBatchesForProducts()]);renderProducts();
   }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
