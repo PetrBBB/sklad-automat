@@ -536,7 +536,7 @@ function renderSettings(){
     <div class="settings-section">
       <h3>Informace</h3>
       <p style="font-size:13px;color:#888;line-height:1.6">
-        Verze: <strong>v1.9.0</strong><br>
+        Verze: <strong>v1.9.1</strong><br>
         Databáze: Supabase<br>
         Produktů celkem: <strong>${products.length}</strong>
       </p>
@@ -653,6 +653,10 @@ async function confirmPrijem(){
   const expiry=document.getElementById('prijemExpiry').value;
   if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p=products.find(x=>x.id===activeProductId);
+  // Disable button to prevent double submit
+  const btn=document.querySelector('#modal-prijem .btn.primary');
+  if(btn.disabled) return;
+  btn.disabled=true; btn.textContent='Ukládám...';
   setSync('syncing');
   try{
     await api('PATCH','products',{sklad:p.sklad+qty,order_status:'none'},`?id=eq.${p.id}`);
@@ -661,7 +665,7 @@ async function confirmPrijem(){
       await api('POST','batches',[{product_id:p.id,product_name:p.name,qty,expiry_date:expiry}]);
     }
     setSync('ok');closeModal('modal-prijem');await Promise.all([loadProducts(),loadBatchesForProducts()]);renderProducts();
-  }catch(e){setSync('err');alert('Chyba: '+e.message);}
+  }catch(e){setSync('err');alert('Chyba: '+e.message);const b2=document.querySelector('#modal-prijem .btn.primary');if(b2){b2.disabled=false;b2.textContent='✓ Potvrdit příjem';}}
 }
 
 function openPresun(id){
@@ -677,6 +681,9 @@ async function confirmPresun(){
   if(qty<1){alert('Zadej alespoň 1 kus.');return;}
   const p=products.find(x=>x.id===activeProductId);
   if(qty>p.sklad){alert(`Nedostatek zásob ve skladu. Dostupné: ${p.sklad} ks.`);return;}
+  const btn=document.querySelector('#modal-presun .btn.primary');
+  if(btn.disabled) return;
+  btn.disabled=true; btn.textContent='Ukládám...';
   setSync('syncing');
   try{
     // FIFO - deduct from oldest batches first
@@ -697,7 +704,7 @@ async function confirmPresun(){
     setSync('ok');closeModal('modal-presun');
     await Promise.all([loadProducts(), loadBatchesForProducts()]);
     renderProducts();
-  }catch(e){setSync('err');alert('Chyba: '+e.message);}
+  }catch(e){setSync('err');alert('Chyba: '+e.message);const b2=document.querySelector('#modal-presun .btn.primary');if(b2){b2.disabled=false;b2.textContent='→ Přesunout';}}
 }
 
 function openAddProduct(){
@@ -780,7 +787,20 @@ async function undoHistory(historyId, type, productId, qty, productName, created
 
     if(type==='prijem'){
       const newSklad = p.sklad - qty;
-      if(newSklad < 0){ alert(`Nelze vrátit — sklad by byl záporný (aktuálně ${p.sklad} ks).`); setSync('ok'); return; }
+      if(newSklad < 0){
+        // Sklad is already wrong (e.g. double submit) - just fix the batch and set sklad to 0
+        if(!confirm(`Sklad je aktuálně ${p.sklad} ks, ale vrácení by ho snížilo na ${newSklad}. Pravděpodobně došlo k dvojímu odeslání. Opravit sklad na 0 a smazat dávku?`)) { setSync('ok'); return; }
+        await api('PATCH','products',{sklad:0},`?id=eq.${productId}`);
+        const allBatches2 = await api('GET','batches',null,`?product_id=eq.${productId}&order=created_at.desc`);
+        if(allBatches2&&allBatches2.length){
+          const b2=allBatches2.find(b=>b.qty===qty)||allBatches2[0];
+          await api('DELETE','batches',null,`?id=eq.${b2.id}`);
+        }
+        await api('DELETE','history',null,`?id=eq.${historyId}`);
+        setSync('ok');
+        await Promise.all([loadProducts(),loadBatchesForProducts()]);
+        renderProducts(); renderHistory(); return;
+      }
       // Find batch closest in time to this history record
       const allBatches = await api('GET','batches',null,`?product_id=eq.${productId}&order=created_at.desc`);
       let batchToRemove = null;
