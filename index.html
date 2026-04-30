@@ -203,8 +203,6 @@ input:focus{border-color:#888;background:#fff}
     <input type="text" id="newName" placeholder="např. Coca Cola">
     <label>Kategorie</label>
     <select class="cat-select" id="newCat"></select>
-    <label>Minimální zásoba skladu</label>
-    <input type="number" id="newMin" min="0" value="5" inputmode="numeric">
     <div class="modal-btns">
       <button class="btn gray" style="flex:none;padding:10px 18px" onclick="closeModal('modal-addproduct')">Zrušit</button>
       <button class="btn primary" onclick="confirmAddProduct()">✓ Přidat</button>
@@ -378,6 +376,19 @@ function setSort(key, dir){
 
 function applyFilters(){renderProducts();}
 
+let batchesByProduct = {};
+
+async function loadBatchesForProducts(){
+  try{
+    const batches = await api('GET','batches',null,'?order=expiry_date.asc');
+    batchesByProduct = {};
+    batches.forEach(b=>{
+      if(!batchesByProduct[b.product_id]) batchesByProduct[b.product_id]=[];
+      batchesByProduct[b.product_id].push(b);
+    });
+  }catch(e){ batchesByProduct={}; }
+}
+
 function renderProducts(){
   const q=document.getElementById('search').value.toLowerCase();
   const filtered=products.filter(p=>{
@@ -395,12 +406,23 @@ function renderProducts(){
   el.innerHTML=filtered.map(p=>{
     
     const sc=p.sklad===0?'low':'';
+    const batchInfo = batchesByProduct[p.id] || [];
+    const batchHTML = batchInfo.length
+      ? '<div style="margin-bottom:8px">' + batchInfo.map(b=>{
+          const exp=new Date(b.expiry_date);
+          const now=new Date();
+          const diff=Math.ceil((exp-now)/(1000*60*60*24));
+          const color = diff<0?'#c0392b':diff<=30?'#c0392b':diff<=60?'#e67e22':'#888';
+          return `<div style="font-size:12px;color:${color};margin-bottom:2px">📦 ${b.qty} ks · ${exp.toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric'})}</div>`;
+        }).join('') + '</div>'
+      : '';
     return `<div class="product-card">
       <div class="product-name">${p.name}</div>
       <div class="product-cat">${catBadge(p.cat)}</div>
       <div class="stock-row">
         <div class="stock-box"><span class="stock-label">Ve skladu</span><span class="stock-val ${sc}">${p.sklad}</span></div>
       </div>
+      ${batchHTML}
       <div class="btn-row">
         <button class="btn green" onclick="openPrijem(${p.id})">+ Příjem</button>
         <button class="btn blue" onclick="openPresun(${p.id})">→ Automat</button>
@@ -515,7 +537,7 @@ function renderSettings(){
     <div class="settings-section">
       <h3>Informace</h3>
       <p style="font-size:13px;color:#888;line-height:1.6">
-        Verze: <strong>v1.7.0</strong><br>
+        Verze: <strong>v1.8.0</strong><br>
         Databáze: Supabase<br>
         Produktů celkem: <strong>${products.length}</strong>
       </p>
@@ -635,7 +657,7 @@ async function confirmPrijem(){
   try{
     await api('PATCH','products',{sklad:p.sklad+qty,order_status:'none'},`?id=eq.${p.id}`);
     await api('POST','history',[{product_id:p.id,product_name:p.name,type:'prijem',qty}]);
-    setSync('ok');closeModal('modal-prijem');await loadProducts();
+    setSync('ok');closeModal('modal-prijem');await Promise.all([loadProducts(),loadBatchesForProducts()]);
   }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
@@ -654,26 +676,39 @@ async function confirmPresun(){
   if(qty>p.sklad){alert(`Nedostatek zásob ve skladu. Dostupné: ${p.sklad} ks.`);return;}
   setSync('syncing');
   try{
+    // FIFO - deduct from oldest batches first
+    const batches = (batchesByProduct[p.id]||[]).slice().sort((a,b)=>new Date(a.expiry_date)-new Date(b.expiry_date));
+    let remaining = qty;
+    for(const b of batches){
+      if(remaining<=0) break;
+      if(b.qty<=remaining){
+        await api('DELETE','batches',null,`?id=eq.${b.id}`);
+        remaining -= b.qty;
+      } else {
+        await api('PATCH','batches',{qty:b.qty-remaining},`?id=eq.${b.id}`);
+        remaining = 0;
+      }
+    }
     await api('PATCH','products',{sklad:p.sklad-qty,automat:p.automat+qty},`?id=eq.${p.id}`);
     await api('POST','history',[{product_id:p.id,product_name:p.name,type:'presun',qty}]);
-    setSync('ok');closeModal('modal-presun');await loadProducts();
+    setSync('ok');closeModal('modal-presun');
+    await Promise.all([loadProducts(), loadBatchesForProducts()]);
+    renderProducts();
   }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function openAddProduct(){
   document.getElementById('newName').value='';
-  document.getElementById('newMin').value=5;
   fillCatSelect('newCat');
   document.getElementById('modal-addproduct').classList.add('open');
 }
 async function confirmAddProduct(){
   const name=document.getElementById('newName').value.trim();
   const cat=document.getElementById('newCat').value;
-  const min=parseInt(document.getElementById('newMin').value)||5;
   if(!name){alert('Zadej název produktu.');return;}
   setSync('syncing');
   try{
-    await api('POST','products',[{name,cat,sklad:0,automat:0,min}]);
+    await api('POST','products',[{name,cat,sklad:0,automat:0,min:0}]);
     setSync('ok');closeModal('modal-addproduct');await loadProducts();
   }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
@@ -908,7 +943,7 @@ async function seedProducts(){
 }
 
 async function init(){
-  await Promise.all([loadProducts(), loadCategories()]);
+  await Promise.all([loadProducts(), loadCategories(), loadBatchesForProducts()]);
   renderFilterBar();
   if(products.length===0){
     if(confirm('Databáze je prázdná. Načíst výchozích 63 produktů?')) await seedProducts();
