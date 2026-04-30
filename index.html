@@ -536,7 +536,7 @@ function renderSettings(){
     <div class="settings-section">
       <h3>Informace</h3>
       <p style="font-size:13px;color:#888;line-height:1.6">
-        Verze: <strong>v1.8.0</strong><br>
+        Verze: <strong>v1.9.0</strong><br>
         Databáze: Supabase<br>
         Produktů celkem: <strong>${products.length}</strong>
       </p>
@@ -723,7 +723,7 @@ async function renderHistory(){
     const history=await api('GET','history',null,'?order=created_at.desc&limit=100');
     if(!history.length){el.innerHTML='<div class="empty-state">Zatím žádné pohyby.</div>';return;}
     let html='',lastDate='';
-    history.forEach(h=>{
+    history.slice(0,10).forEach((h,idx)=>{
       const d=new Date(h.created_at);
       const dateStr=d.toLocaleDateString('cs-CZ',{weekday:'short',day:'numeric',month:'long'});
       if(dateStr!==lastDate){html+=`<div class="section-title">${dateStr}</div>`;lastDate=dateStr;}
@@ -732,16 +732,78 @@ async function renderHistory(){
       if(h.type==='prijem'){cls='plus';txt=`+${h.qty} sklad`;}
       else if(h.type==='presun'){cls='move';txt=`→ ${h.qty} automat`;}
       else if(h.type==='inventura'){cls='inv';txt=`inv: ${h.note}`;}
+      const canUndo = h.type==='prijem'||h.type==='presun';
       html+=`<div class="history-item">
         <div style="flex:1;min-width:0">
           <div class="history-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.product_name}</div>
           <div class="history-detail">${timeStr}</div>
         </div>
-        <div class="history-change ${cls}">${txt}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="history-change ${cls}">${txt}</div>
+          ${canUndo?`<button class="btn" style="flex:none;padding:5px 10px;font-size:12px;color:#c0392b;border-color:#e8b4b0" onclick="undoHistory(${h.id},'${h.type}',${h.product_id},${h.qty},'${h.product_name}')">Vrátit</button>`:''}
+        </div>
       </div>`;
     });
+    // Rest of history without undo buttons
+    if(history.length>10){
+      let lastDate2='';
+      history.slice(10).forEach(h=>{
+        const d=new Date(h.created_at);
+        const dateStr=d.toLocaleDateString('cs-CZ',{weekday:'short',day:'numeric',month:'long'});
+        if(dateStr!==lastDate2 && dateStr!==lastDate){html+=`<div class="section-title">${dateStr}</div>`;lastDate2=dateStr;}
+        const timeStr=d.toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+        let cls='',txt='';
+        if(h.type==='prijem'){cls='plus';txt=`+${h.qty} sklad`;}
+        else if(h.type==='presun'){cls='move';txt=`→ ${h.qty} automat`;}
+        else if(h.type==='inventura'){cls='inv';txt=`inv: ${h.note}`;}
+        html+=`<div class="history-item">
+          <div style="flex:1;min-width:0">
+            <div class="history-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.product_name}</div>
+            <div class="history-detail">${timeStr}</div>
+          </div>
+          <div class="history-change ${cls}">${txt}</div>
+        </div>`;
+      });
+    }
     el.innerHTML=html;
   }catch(e){el.innerHTML='<div class="empty-state">Chyba načítání historie.</div>';}
+}
+
+async function undoHistory(historyId, type, productId, qty, productName){
+  if(!confirm(`Vrátit "${productName}" — ${type==='prijem'?`odebrat ${qty} ks ze skladu`:`vrátit ${qty} ks ze automatu do skladu`}?`)) return;
+  setSync('syncing');
+  try{
+    const prods = await api('GET','products',null,`?id=eq.${productId}`);
+    if(!prods||!prods.length) throw new Error('Produkt nenalezen');
+    const p = prods[0];
+    if(type==='prijem'){
+      // Undo prijem: subtract from sklad, delete newest batch for this product matching qty
+      const newSklad = p.sklad - qty;
+      if(newSklad < 0){ alert('Nelze vrátit — sklad by byl záporný.'); setSync('ok'); return; }
+      await api('PATCH','products',{sklad:newSklad},`?id=eq.${productId}`);
+      // Try to remove matching batch - get newest batch for this product
+      const batches = await api('GET','batches',null,`?product_id=eq.${productId}&order=created_at.desc&limit=1`);
+      if(batches&&batches.length){
+        const b=batches[0];
+        if(b.qty<=qty){
+          await api('DELETE','batches',null,`?id=eq.${b.id}`);
+        } else {
+          await api('PATCH','batches',{qty:b.qty-qty},`?id=eq.${b.id}`);
+        }
+      }
+    } else if(type==='presun'){
+      // Undo presun: add back to sklad, subtract from automat
+      const newAutomat = p.automat - qty;
+      if(newAutomat < 0){ alert('Nelze vrátit — automat by byl záporný.'); setSync('ok'); return; }
+      await api('PATCH','products',{sklad:p.sklad+qty,automat:newAutomat},`?id=eq.${productId}`);
+    }
+    // Delete history record
+    await api('DELETE','history',null,`?id=eq.${historyId}`);
+    setSync('ok');
+    await Promise.all([loadProducts(),loadBatchesForProducts()]);
+    renderProducts();
+    renderHistory();
+  }catch(e){setSync('err');alert('Chyba: '+e.message);}
 }
 
 function switchTab(tab){
