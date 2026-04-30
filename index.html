@@ -381,8 +381,9 @@ async function loadBatchesForProducts(){
     const batches = await api('GET','batches',null,'?order=expiry_date.asc');
     batchesByProduct = {};
     batches.forEach(b=>{
-      if(!batchesByProduct[b.product_id]) batchesByProduct[b.product_id]=[];
-      batchesByProduct[b.product_id].push(b);
+      const pid = Number(b.product_id);
+      if(!batchesByProduct[pid]) batchesByProduct[pid]=[];
+      batchesByProduct[pid].push(b);
     });
   }catch(e){ batchesByProduct={}; }
 }
@@ -404,7 +405,7 @@ function renderProducts(){
   el.innerHTML=filtered.map(p=>{
     
     const sc=p.sklad===0?'low':'';
-    const batchInfo = batchesByProduct[p.id] || [];
+    const batchInfo = batchesByProduct[Number(p.id)] || [];
     const batchHTML = batchInfo.length
       ? '<div style="margin-bottom:8px">' + batchInfo.map(b=>{
           const exp=new Date(b.expiry_date);
@@ -679,7 +680,7 @@ async function confirmPresun(){
   setSync('syncing');
   try{
     // FIFO - deduct from oldest batches first
-    const batches = (batchesByProduct[p.id]||[]).slice().sort((a,b)=>new Date(a.expiry_date)-new Date(b.expiry_date));
+    const batches = (batchesByProduct[Number(p.id)]||[]).slice().sort((a,b)=>new Date(a.expiry_date)-new Date(b.expiry_date));
     let remaining = qty;
     for(const b of batches){
       if(remaining<=0) break;
