@@ -157,3 +157,8 @@ create policy "public access" on history for all using (true) with check (true);
 ### v1.7.0
 - Kategorie přesunuty do Supabase — sdílené napříč zařízeními
 - Přidání a mazání kategorií se projeví na všech zařízeních okamžitě
+
+### v1.8.0
+- Odstraněno pole minimální zásoba z formuláře nového produktu
+- Dávky s expirací zobrazeny přímo na kartě produktu
+- Přesun do automatu používá FIFO — odečítá od nejstarší dávky automaticky
