@@ -647,6 +647,8 @@ function openPrijem(id){
   document.getElementById('modal-prijem-sub').textContent=p.name;
   document.getElementById('prijemQty').value='';
   document.getElementById('prijemExpiry').value='';
+  const btn=document.querySelector('#modal-prijem .btn.primary');
+  if(btn){btn.disabled=false;btn.textContent='✓ Potvrdit příjem';}
   document.getElementById('modal-prijem').classList.add('open');
   setTimeout(()=>document.getElementById('prijemQty').focus(),300);
 }
@@ -675,6 +677,8 @@ function openPresun(id){
   const p=products.find(x=>x.id===id);
   document.getElementById('modal-presun-sub').textContent=`${p.name} · ve skladu: ${p.sklad} ks`;
   document.getElementById('presunQty').value='';
+  const btn=document.querySelector('#modal-presun .btn.primary');
+  if(btn){btn.disabled=false;btn.textContent='→ Přesunout';}
   document.getElementById('modal-presun').classList.add('open');
   setTimeout(()=>document.getElementById('presunQty').focus(),300);
 }
@@ -967,9 +971,18 @@ function openDavkaVyber(){
   document.body.appendChild(sel);
 }
 
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  const btn=document.querySelector(`#${id} .btn.primary`);
+  if(btn){
+    btn.disabled=false;
+    if(id==='modal-prijem') btn.textContent='✓ Potvrdit příjem';
+    else if(id==='modal-presun') btn.textContent='→ Přesunout';
+    else if(id==='modal-addproduct') btn.textContent='✓ Přidat';
+  }
+}
 document.querySelectorAll('.modal-overlay').forEach(m=>{
-  m.addEventListener('click',e=>{if(e.target===m) m.classList.remove('open');});
+  m.addEventListener('click',e=>{if(e.target===m) closeModal(m.id);});
 });
 
 async function seedProducts(){
