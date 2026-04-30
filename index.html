@@ -389,6 +389,7 @@ async function loadBatchesForProducts(){
 }
 
 function renderProducts(){
+  const scrollY = window.scrollY;
   const q=document.getElementById('search').value.toLowerCase();
   const filtered=products.filter(p=>{
     const mq=p.name.toLowerCase().includes(q)||p.cat.toLowerCase().includes(q);
@@ -402,8 +403,7 @@ function renderProducts(){
   });
   const el=document.getElementById('product-list');
   if(!filtered.length){el.innerHTML='<div class="empty-state">Žádný produkt nenalezen.</div>';return;}
-  el.innerHTML=filtered.map(p=>{
-    
+  const html=filtered.map(p=>{
     const sc=p.sklad===0?'low':'';
     const batchInfo = batchesByProduct[Number(p.id)] || [];
     const batchHTML = batchInfo.length
@@ -428,6 +428,8 @@ function renderProducts(){
       </div>
     </div>`;
   }).join('');
+  el.innerHTML=html;
+  window.scrollTo(0, scrollY);
 }
 
 function renderOrder(){
